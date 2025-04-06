@@ -1,0 +1,22 @@
+idf_component_register(
+    SRCS 
+        "main.cpp"
+        "inc/ethernet/ethernet_manager.cpp"
+        "inc/mcp23017/mcp23017.cpp"
+        "inc/mcp23017/MCPManager.cpp"
+        "dev/light/light.cpp"
+        "helper/helper.cpp"
+    INCLUDE_DIRS 
+        "."
+        "inc"
+        "dev"
+        "helper"
+    REQUIRES 
+        driver 
+        esp_eth 
+        esp_netif 
+        lwip 
+        espressif__enc28j60
+        nvs_flash
+        i2c_bus
+)
