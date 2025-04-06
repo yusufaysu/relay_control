@@ -148,10 +148,6 @@ void gpio_task(void *arg) {
     */
 
 
-
-
-
-
 /*
     MCP23017* mcp1 = mcpManager.getMCP(0x20);
     if (mcp1) {
