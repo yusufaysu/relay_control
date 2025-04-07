@@ -19,4 +19,5 @@ idf_component_register(
         espressif__enc28j60
         nvs_flash
         i2c_bus
+        esp_timer
 )

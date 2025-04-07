@@ -4,6 +4,7 @@
 #include "freertos/queue.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 
 #define I2C_MASTER_NUM I2C_NUM_0
 #define I2C_MASTER_SDA_IO (gpio_num_t)13
@@ -28,38 +29,49 @@ void IRAM_ATTR gpio_isr_handler(void* arg) {
 void mcp_interrupt_task(void* arg) {
     MCP23017* mcp;
 
-    // Her pinin son bilinen durumunu tut (16 pin için)
-    static bool last_state[16] = {0};
+    static bool last_state[16] = {0};                      // Her pinin son bilinen durumu
+    static int64_t last_change_time_us[16] = {0};          // Her pinin son değişim zamanı (mikrosaniye)
+    const int debounce_interval_us = 5000;                 // 5 ms debounce süresi
 
     while (1) {
         if (xQueueReceive(mcp_int_queue, &mcp, portMAX_DELAY)) {
             uint8_t intfA = 0, gpioA = 0;
             uint8_t intfB = 0, gpioB = 0;
 
-            // Değişiklik olmuş pinlerin bilgileri
             mcp->readRegister(0x0E, &intfA);     // INTFA
             mcp->readRegister(0x12, &gpioA);     // GPIOA
 
             mcp->readRegister(0x0F, &intfB);     // INTFB
             mcp->readRegister(0x13, &gpioB);     // GPIOB
 
+            int64_t now_us = esp_timer_get_time();
+
+            // Port A debounce ve log
             for (int i = 0; i < 8; i++) {
                 if (intfA & (1 << i)) {
                     bool now = (gpioA >> i) & 0x01;
-                    if (now != last_state[i]) {
-                        ESP_LOGI("MCP_INT", "Port A Pin %d changed: %d -> %d", i, last_state[i], now);
-                        last_state[i] = now;
+                    int pin_index = i;
+                    if (now != last_state[pin_index] &&
+                        (now_us - last_change_time_us[pin_index]) > debounce_interval_us) {
+                        
+                        ESP_LOGI("MCP_INT", "Port A Pin %d changed: %d -> %d", i, last_state[pin_index], now);
+                        last_state[pin_index] = now;
+                        last_change_time_us[pin_index] = now_us;
                     }
                 }
             }
 
+            // Port B debounce ve log
             for (int i = 0; i < 8; i++) {
                 if (intfB & (1 << i)) {
                     bool now = (gpioB >> i) & 0x01;
                     int pin_index = i + 8;
-                    if (now != last_state[pin_index]) {
+                    if (now != last_state[pin_index] &&
+                        (now_us - last_change_time_us[pin_index]) > debounce_interval_us) {
+
                         ESP_LOGI("MCP_INT", "Port B Pin %d changed: %d -> %d", i, last_state[pin_index], now);
                         last_state[pin_index] = now;
+                        last_change_time_us[pin_index] = now_us;
                     }
                 }
             }
