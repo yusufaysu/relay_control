@@ -44,6 +44,8 @@ class MCP23017 {
         std::vector<uint8_t> getChangedPins();
         esp_err_t readRegister(uint8_t reg, uint8_t *value);
         uint8_t getRegisterValue(uint8_t reg);
+        void setIntGPIO(gpio_num_t gpio);
+        gpio_num_t getIntGPIO() const;
         
     private:
         i2c_port_t _i2c_num;
@@ -52,6 +54,7 @@ class MCP23017 {
         gpio_num_t _scl_pin;
         uint32_t _clk_speed;
         static bool _is_driver_installed;
-        
+        gpio_num_t _int_gpio;
+
         esp_err_t writeRegister(uint8_t reg, uint8_t value);
 };

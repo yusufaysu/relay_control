@@ -219,3 +219,11 @@ uint8_t MCP23017::getRegisterValue(uint8_t reg) {
     }
     return value;
 }
+
+void MCP23017::setIntGPIO(gpio_num_t gpio) {
+    _int_gpio = gpio;
+}
+
+gpio_num_t MCP23017::getIntGPIO() const {
+    return _int_gpio;
+}
