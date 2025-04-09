@@ -1,10 +1,19 @@
 #include "inc/mcp23017/MCPManager.hpp"
+#include "inc/ethernet/ethernet_manager.hpp"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_task_wdt.h"
+
+#define ETH_MISO  15
+#define ETH_MOSI  16
+#define ETH_SCLK  17
+#define ETH_CS    5
+#define ETH_INT   4
+#define ETH_RST   18
 
 #define I2C_MASTER_NUM I2C_NUM_0
 #define I2C_MASTER_SDA_IO (gpio_num_t)13
@@ -17,9 +26,12 @@
 static const char* TAG = "MAIN";
 
 static QueueHandle_t mcp_int_queue = nullptr;
+EthernetManager* ethernet = nullptr;
 
 static bool pinStates[2][16] = {0};
 static int64_t last_change_time_us[32] = {0};
+
+TaskHandle_t mcp_task_handle = nullptr;
 
 void IRAM_ATTR gpio_isr_handler(void* arg) {
     MCP23017* mcp = static_cast<MCP23017*>(arg);
@@ -36,6 +48,7 @@ void mcp_interrupt_task(void* arg) {
         if (xQueueReceive(mcp_int_queue, &mcp, portMAX_DELAY)) {
             int mcp_index = (mcp->getI2CAddress() == 0x22) ? 1 : 0;
             gpio_num_t int_pin = mcp->getIntGPIO();
+            int retry = 0;
             do {
                 uint8_t intfA = 0, gpioA = 0;
                 uint8_t intfB = 0, gpioB = 0;
@@ -73,8 +86,10 @@ void mcp_interrupt_task(void* arg) {
                     }
                 }
 
-                vTaskDelay(pdMS_TO_TICKS(2));
-            } while (gpio_get_level(int_pin) == 0);
+                vTaskDelay(pdMS_TO_TICKS(1));
+                retry++;
+
+            } while (gpio_get_level(int_pin) == 0 && retry < 10);
         }
     }
 }
@@ -142,22 +157,17 @@ extern "C" void app_main(void) {
     gpio_isr_handler_add(MCP_INT_GPIO_22, gpio_isr_handler, mcp_22);
     ESP_LOGI(TAG, "INT handlers attached.");
 
-    xTaskCreate(mcp_interrupt_task, "mcp_interrupt_task", 4096, NULL, 10, NULL);
+    xTaskCreate(mcp_interrupt_task, "mcp_interrupt_task", 4096, NULL, 10, &mcp_task_handle);
+    esp_task_wdt_delete(mcp_task_handle);
+
+    ethernet = new EthernetManager(ETH_MISO, ETH_MOSI, ETH_SCLK, ETH_CS, ETH_INT);
+    if (!ethernet->begin())
+        ESP_LOGE(TAG, "Ethernet can not begin.");
 
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
-
-//EthernetManager* ethernet = nullptr;
-
-// Ethernet yöneticisini heap'te oluştur
-// ethernet = new EthernetManager(SPI_MISO_GPIO_NUM, SPI_MOSI_GPIO_NUM, SPI_SCLK_GPIO_NUM, SPI_CS_GPIO_NUM, SPI_INT_GPIO_NUM);
-
-// Ethernet'i başlat
-// if (!ethernet->begin())
-    // ESP_LOGE(TAG, "Ethernet can not begin.");
-
 
 /*
 void gpio_task(void *arg) {

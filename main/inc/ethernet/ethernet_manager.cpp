@@ -74,7 +74,7 @@ bool EthernetManager::begin() {
     io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
     gpio_config(&io_conf);
 
-    ESP_ERROR_CHECK(gpio_install_isr_service(0));
+    //ESP_ERROR_CHECK(gpio_install_isr_service(0));
     ESP_ERROR_CHECK(esp_netif_init());
     esp_netif_config_t netif_cfg = ESP_NETIF_DEFAULT_ETH();
     eth_netif_ = esp_netif_new(&netif_cfg);
@@ -242,7 +242,7 @@ void EthernetManager::gotIpEventHandler(void* arg, esp_event_base_t event_base, 
     if (event_id == IP_EVENT_ETH_GOT_IP) {
         ESP_LOGI(TAG, "IP alındı");
         eth->eth_ready = true;
-        //eth->startPing("google.com", 2 * 1000);
+        eth->startPing("google.com", 5 * 1000);
         eth->logNetworkInfo();
     }
 }
