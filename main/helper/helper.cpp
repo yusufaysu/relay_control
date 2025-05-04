@@ -1,9 +1,16 @@
 #include "inc/mcp23017/MCPManager.hpp"
-#include "inc/ethernet/ethernet_manager.hpp"
-#include "dev/light/light.hpp"
+#include "inc/ethernet/ethernet.hpp"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
+#include "driver/gpio.h"
+#include "esp_timer.h"
+#include "dev/light/light.hpp"
 #include "esp_log.h"
+
+static const char* HELPER = "HELPER";
+
+// -------------------mcp23017 HELPER FUNCTIONS-------------------
 
 void logMCPPinStates(MCP23017* mcp) {
 	for (int i = 0; i < 16; i++) {
@@ -89,12 +96,12 @@ void gpio_task(void *arg) {
 */
 
 /*
-EthernetManager* ethernet = nullptr;
+Erhernet* ethernet = nullptr;
 
 //main
 
 // Ethernet yöneticisini heap'te oluştur
-    ethernet = new EthernetManager(SPI_MISO_GPIO_NUM, SPI_MOSI_GPIO_NUM, SPI_SCLK_GPIO_NUM, SPI_CS_GPIO_NUM, SPI_INT_GPIO_NUM);
+    ethernet = new Erhernet(SPI_MISO_GPIO_NUM, SPI_MOSI_GPIO_NUM, SPI_SCLK_GPIO_NUM, SPI_CS_GPIO_NUM, SPI_INT_GPIO_NUM);
     
     // Ethernet'i başlat
     if (!ethernet->begin())

@@ -26,7 +26,6 @@
 #define MCP23017_OLATA      0x14
 #define MCP23017_OLATB      0x15
 
-
 class MCP23017 {
     public:
         static const uint8_t GPIO_LEVEL_HIGH = 1;

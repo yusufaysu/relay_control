@@ -1,11 +1,6 @@
 #include "inc/mcp23017/MCPManager.hpp"
-#include "inc/ethernet/ethernet_manager.hpp"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
-#include "driver/gpio.h"
-#include "esp_log.h"
-#include "esp_timer.h"
+#include "inc/ethernet/ethernet.hpp"
+#include "helper/helper.cpp"
 
 #define ETH_MISO  15
 #define ETH_MOSI  16
@@ -23,12 +18,9 @@
 #define MCP_INT_GPIO_22 GPIO_NUM_11
 
 static const char* TAG = "MAIN";
-
-static QueueHandle_t mcp_int_queue = nullptr;
-EthernetManager* ethernet = nullptr;
-
-static bool pinStates[2][16] = {0};
 static int64_t last_change_time_us[32] = {0};
+static bool pinStates[2][16] = {0};
+static QueueHandle_t mcp_int_queue = nullptr;
 
 void IRAM_ATTR gpio_isr_handler(void* arg) {
     MCP23017* mcp = static_cast<MCP23017*>(arg);
@@ -98,43 +90,37 @@ void initialize_pin_states(MCP23017* mcp, int mcp_index) {
     }
 }
 
+bool init_mcp(MCP23017* mcp, gpio_num_t int_gpio, int index) {
+    if (mcp)
+    {
+        mcp->setIntGPIO(int_gpio);
+        for (int i = 0; i < 16; i++)
+        {
+            mcp->pinMode(i, 1);
+            mcp->pullUp(i, true);
+            mcp->enableInterrupt(i, true);
+        }
+        initialize_pin_states(mcp, index);
+        ESP_LOGI(HELPER, "MCP %02X initialized successfully.", mcp->getI2CAddress());
+        return true;
+    }
+    else {
+        ESP_LOGE(HELPER, "MCP 0x20 init failed.");
+        return false;
+    }
+}
+
 extern "C" void app_main(void) {
     MCPManager& mcpManager = MCPManager::getInstance();
 
     mcpManager.addMCP(0x20, I2C_MASTER_NUM, I2C_MASTER_SDA_IO, I2C_MASTER_SCL_IO, I2C_MASTER_FREQ_HZ);
     mcpManager.addMCP(0x22, I2C_MASTER_NUM, I2C_MASTER_SDA_IO, I2C_MASTER_SCL_IO, I2C_MASTER_FREQ_HZ);
     
-    
     MCP23017* mcp_20 = mcpManager.getMCP(0x20);
     MCP23017* mcp_22 = mcpManager.getMCP(0x22);
     
-    if (mcp_20) {
-        mcp_20->setIntGPIO(MCP_INT_GPIO_20);
-        for (int i = 0; i < 16; i++) {
-            mcp_20->pinMode(i, 1);
-            mcp_20->pullUp(i, true);
-            mcp_20->enableInterrupt(i, true);
-            ESP_LOGI(TAG, "MCP 0x20 - Pin %d input & interrupt enabled.", i);
-        }
-        initialize_pin_states(mcp_20, 0);
-    } else {
-        ESP_LOGE(TAG, "MCP 0x20 init failed.");
-        return;
-    }
-
-    if (mcp_22) {
-        mcp_22->setIntGPIO(MCP_INT_GPIO_22);
-        for (int i = 0; i < 16; i++) {
-            mcp_22->pinMode(i, 1);
-            mcp_22->pullUp(i, true);
-            mcp_22->enableInterrupt(i, true);
-            ESP_LOGI(TAG, "MCP 0x22 - Pin %d input & interrupt enabled.", i);
-        }
-        initialize_pin_states(mcp_22, 1);
-    } else {
-        ESP_LOGE(TAG, "MCP 0x22 init failed.");
-        return;
-    }
+    init_mcp(mcp_20, MCP_INT_GPIO_20, 0);
+    init_mcp(mcp_22, MCP_INT_GPIO_22, 1);
 
     gpio_config_t int_conf = {
         .pin_bit_mask = (1ULL << MCP_INT_GPIO_20) | (1ULL << MCP_INT_GPIO_22),
@@ -154,13 +140,18 @@ extern "C" void app_main(void) {
     xTaskCreate(mcp_interrupt_task, "mcp_interrupt_task", 4096, NULL, 10, NULL);
 
     // Ethernet yöneticisini heap'te oluştur
-    ethernet = new EthernetManager(ETH_MISO, ETH_MOSI, ETH_SCLK, ETH_CS, ETH_INT);
+    Erhernet ethernet;
 
     // Ethernet'i başlat
-    if (!ethernet->begin())
+    if (!ethernet.begin())
         ESP_LOGE(TAG, "Ethernet can not begin.");
 
+    
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(1000));
+        if (mcp_20->digitalRead(0) == 0) {
+            ethernet.deleteMacAddressFromNvs();
+            ESP_LOGI(TAG, "MCP 0x20 Pin 0 is LOW. Deleting MAC address from NVS.");
+        }
     }
 }
