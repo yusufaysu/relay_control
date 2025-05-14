@@ -3,7 +3,6 @@ idf_component_register(
         "main.cpp"
         "inc/ethernet/ethernet.cpp"
         "inc/mcp23017/mcp23017.cpp"
-        "inc/mcp23017/MCPManager.cpp"
         "dev/light/light.cpp"
         "helper/helper.cpp"
     INCLUDE_DIRS 

@@ -1,4 +1,4 @@
-#include "inc/mcp23017/MCPManager.hpp"
+#include "inc/mcp23017/mcp23017.hpp"
 #include "inc/ethernet/ethernet.hpp"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -8,15 +8,16 @@
 #include "dev/light/light.hpp"
 #include "esp_log.h"
 
-static const char* HELPER = "HELPER";
+//static const char* HELPER = "HELPER";
 
 // -------------------mcp23017 HELPER FUNCTIONS-------------------
-
+/*
 void logMCPPinStates(MCP23017* mcp) {
 	for (int i = 0; i < 16; i++) {
 		printf("Pin %d: %d\n", i, mcp->pinStates[i]);
 	}
 }
+*/
 
 /*
 void gpio_task(void *arg) {

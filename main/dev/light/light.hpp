@@ -1,6 +1,6 @@
 #pragma once
 
-#include "inc/mcp23017/MCPManager.hpp"
+#include "inc/mcp23017/mcp23017.hpp"
 #include <vector>
 
 struct PinPair {
