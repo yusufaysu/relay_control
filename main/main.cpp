@@ -7,7 +7,8 @@ static const char* TAG = "MAIN";
 MCP23017 mcp_input_1(0x20);
 MCP23017 mcp_input_2(0x22);
 
-Erhernet ethernet; // Ethernet nesnesi
+// Ethernet nesnesi
+Erhernet ethernet; 
 
 extern "C" void app_main(void) {
     esp_err_t err = gpio_install_isr_service(ESP_INTR_FLAG_LEVEL1);
