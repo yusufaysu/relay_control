@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Giriş</title>
+</head>
+<body>
+  <h2>Giriş</h2>
+  <form id="login-form">
+    <input name="username" placeholder="Kullanıcı Adı"><br>
+    <input name="password" type="password" placeholder="Şifre"><br>
+    <button type="submit">Giriş Yap</button>
+  </form>
+
+  <script>
+    document.getElementById("login-form").addEventListener("submit", function(e) {
+      e.preventDefault(); // sayfanın yeniden yüklenmesini engelle
+
+      const formData = new FormData(this);
+      const data = new URLSearchParams(formData).toString();
+
+      fetch("/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: data
+      })
+      .then(res => res.text())
+      .then(text => {
+        if (text === "OK") {
+          window.location.href = "/panel.html";
+        } else {
+          alert("Kullanıcı adı veya şifre yanlış!");
+        }
+      })
+      .catch(err => {
+        alert("Sunucu hatası: " + err);
+      });
+    });
+  </script>
+</body>
+</html>
