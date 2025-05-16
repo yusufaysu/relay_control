@@ -31,7 +31,7 @@ esp_err_t WebServer::login_handler(httpd_req_t *req) {
 esp_err_t WebServer::file_handler(httpd_req_t *req) {
     char filepath[128] = "/spiffs";
     strlcat(filepath, req->uri, sizeof(filepath));
-
+ 
     ESP_LOGI("WebServer", "file_handler çağrıldı: %s", filepath);
 
     FILE *file = fopen(filepath, "r");
@@ -49,6 +49,27 @@ esp_err_t WebServer::file_handler(httpd_req_t *req) {
 
     fclose(file);
     httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+esp_err_t WebServer::redirect_to_login(httpd_req_t *req) {
+    httpd_resp_set_status(req, "302 Found");
+    httpd_resp_set_hdr(req, "Location", "/login.html");
+    httpd_resp_send(req, NULL, 0);
+    return ESP_OK;
+}
+
+esp_err_t WebServer::toggle_handler(httpd_req_t *req) {
+    static bool relay_on = false;
+    relay_on = !relay_on;
+
+    // Buraya gerçek GPIO çıkış kodu ekleyebilirsin:
+    // gpio_set_level(RELAY_GPIO, relay_on ? 1 : 0);
+
+    const char *status = relay_on ? "Açık" : "Kapalı";
+    ESP_LOGI("WebServer", "Röle durumu: %s", status);
+
+    httpd_resp_sendstr(req, status);
     return ESP_OK;
 }
 
@@ -76,6 +97,15 @@ esp_err_t WebServer::begin() {
     }
     ESP_LOGI("WebServer", "HTTP sunucusu başlatıldı");
 
+    // URI: /
+    httpd_uri_t root_redirect = {
+        .uri      = "/",
+        .method   = HTTP_GET,
+        .handler  = redirect_to_login,
+        .user_ctx = NULL
+    };
+    httpd_register_uri_handler(server, &root_redirect);
+
     // URI: /login.html (SPIFFS'ten sunulacak)
     httpd_uri_t login_html = {
         .uri      = "/login.html",
@@ -102,6 +132,23 @@ esp_err_t WebServer::begin() {
         .user_ctx = NULL
     };
     httpd_register_uri_handler(server, &login_post);
+
+    httpd_uri_t toggle_uri = {
+        .uri      = "/toggle",
+        .method   = HTTP_POST,
+        .handler  = toggle_handler,
+        .user_ctx = NULL
+    };
+    httpd_register_uri_handler(server, &toggle_uri);
+    
+    // Paneli gösterecek olan:
+    httpd_uri_t panel_html = {
+        .uri      = "/panel.html",
+        .method   = HTTP_GET,
+        .handler  = file_handler,
+        .user_ctx = NULL
+    };
+    httpd_register_uri_handler(server, &panel_html);    
 
     ESP_LOGI("WebServer", "Tüm URI handler'ları kaydedildi");
     return ESP_OK;
