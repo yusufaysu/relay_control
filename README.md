@@ -5,7 +5,7 @@ Bu proje, **ESP32** tabanlı, Ethernet (ENC28J60) ile haberleşen, MCP23017 GPIO
 ## Özellikler
 
 - **Ethernet (ENC28J60) ile hızlı ve stabil bağlantı**
-- **MCP23017 GPIO genişletici** ile 32 giriş/çıkış desteği
+- **MCP23017 GPIO genişletici** ile 32 giriş ve 32 çıkış desteği
 - **SPIFFS dosya sistemi** ile web arayüz dosyalarını ESP32 üzerinde barındırma
 - **Modern, responsive ve dark-blue temalı web paneli**
 - **Kullanıcı tanımlı grup ve çıkış yönetimi**
