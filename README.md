@@ -1,32 +1,32 @@
-# ESP32 Akıllı Ev Kontrol Sistemi
+# ESP32 Smart Home Control System
 
-Bu proje, **ESP32** tabanlı, Ethernet (ENC28J60) ile haberleşen, MCP23017 GPIO genişletici kullanan ve web tabanlı modern bir kontrol paneli sunan bir akıllı ev otomasyon sistemidir. Sistem, 32 giriş ve 32 çıkışa kadar genişleyebilir, kullanıcı dostu arayüzüyle aydınlatma ve panjur gruplarını kolayca yönetmenizi sağlar.
+This project is an **ESP32**-based smart home automation system featuring Ethernet (ENC28J60) connectivity, an MCP23017 GPIO expander, and a modern web-based control panel. The system supports up to 32 inputs and 32 outputs, allowing users to easily manage lighting and shutter groups through a user-friendly interface.
 
-## Özellikler
+## Features
 
-- **Ethernet (ENC28J60) ile hızlı ve stabil bağlantı**
-- **MCP23017 GPIO genişletici** ile 32 giriş ve 32 çıkış desteği
-- **SPIFFS dosya sistemi** ile web arayüz dosyalarını ESP32 üzerinde barındırma
-- **Modern, responsive ve dark-blue temalı web paneli**
-- **Kullanıcı tanımlı grup ve çıkış yönetimi**
-- **Panjur kontrolü için özel çıkış yönetimi**
-- **Güvenli oturum yönetimi (cookie tabanlı login)**
-- **JSON tabanlı API ile frontend-backend entegrasyonu**
-- **cJSON ile güvenli ve hızlı veri işleme**
-- **Stack overflow ve büyük JSON loglama için güvenlik önlemleri**
-- **Kolay kurulum ve özelleştirme**
+- **Fast and stable Ethernet (ENC28J60) connectivity**
+- **MCP23017 GPIO expander** with support for 32 inputs and 32 outputs
+- **SPIFFS file system** for hosting web interface files directly on the ESP32
+- **Modern, responsive, dark-blue themed web panel**
+- **User-defined group and output management**
+- **Dedicated output management for shutter control**
+- **Secure session management (cookie-based login)**
+- **Frontend-backend integration via JSON-based API**
+- **Secure and fast data processing with cJSON**
+- **Security measures for stack overflow and large JSON logging**
+- **Easy setup and customization**
 
-## Kullanılan Teknolojiler
+## Technologies Used
 
-- **ESP-IDF**: ESP32 geliştirme ortamı
-- **C++**: Donanım ve backend kodları
-- **HTML/CSS/JavaScript**: Modern web arayüzü (panel.html, login.html)
-- **SPIFFS**: Web dosyalarının ESP32 üzerinde saklanması
-- **cJSON**: JSON veri işleme
-- **Ethernet (ENC28J60)**: Kablolu ağ bağlantısı
-- **MCP23017**: I2C tabanlı GPIO genişletici
+- **ESP-IDF**: ESP32 development framework
+- **C++**: Hardware and backend code
+- **HTML/CSS/JavaScript**: Modern web interface (panel.html, login.html)
+- **SPIFFS**: Storing web files on the ESP32
+- **cJSON**: JSON data processing
+- **Ethernet (ENC28J60)**: Wired network connection
+- **MCP23017**: I2C-based GPIO expander
 
-## Dosya Yapısı
+## Project Structure
 
 ```
 ├── main/
@@ -46,52 +46,52 @@ Bu proje, **ESP32** tabanlı, Ethernet (ENC28J60) ile haberleşen, MCP23017 GPIO
 └── ...
 ```
 
-## Kurulum
+## Setup
 
-1. **ESP-IDF ortamını kurun**  
-   [ESP-IDF Kurulum Rehberi](https://docs.espressif.com/projects/esp-idf/tr/latest/esp32/get-started/index.html)
+1. **Install the ESP-IDF environment**  
+   [ESP-IDF Setup Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html)
 
-2. **Bağımlılıkları kontrol edin**  
-   - cJSON kütüphanesi projeye dahildir.
-   - Gerekli ayarlar `CMakeLists.txt` ve `idf_component.yml` dosyalarında yapılmıştır.
+2. **Check dependencies**  
+   - The cJSON library is included in the project.
+   - All necessary settings are configured in `CMakeLists.txt` and `idf_component.yml`.
 
-3. **SPIFFS dosyalarını yükleyin**  
-   `spiffs` klasöründeki `panel.html` ve `login.html` dosyalarını ESP32'ye yükleyin.
+3. **Upload SPIFFS files**  
+   Upload `panel.html` and `login.html` from the `spiffs` folder to the ESP32.
 
-4. **Projeyi derleyin ve yükleyin**
+4. **Build and flash the project**
    ```
    idf.py build
    idf.py -p [PORT] flash
    ```
 
-5. **Cihazı başlatın ve web arayüzüne erişin**  
-   Ethernet bağlantısı üzerinden cihazın IP adresini tarayıcıda açın.
+5. **Start the device and access the web interface**  
+   Open the device's IP address in your browser via Ethernet connection.
 
-## Web Panel Özellikleri
+## Web Panel Features
 
-- **Giriş/Çıkış Grupları:**  
-  Sınırsız sayıda aydınlatma ve panjur grubu ekleyebilir, isimlendirebilir ve yönetebilirsiniz.
-- **Panjur Kontrolü:**  
-  Her panjur grubu için iki çıkış (yukarı/aşağı) atanır ve isimleri değiştirilebilir.
-- **Kullanıcı Dostu Arayüz:**  
-  Tüm işlemler localStorage ile yönetilir, backend ile JSON tabanlı API üzerinden haberleşir.
-- **Güvenli Giriş:**  
-  login.html üzerinden oturum açmadan panele erişim engellenir.
+- **Input/Output Groups:**  
+  Add, name, and manage unlimited lighting and shutter groups.
+- **Shutter Control:**  
+  Each shutter group is assigned two outputs (up/down), and their names can be changed.
+- **User-Friendly Interface:**  
+  All operations are managed with localStorage and communicate with the backend via a JSON-based API.
+- **Secure Login:**  
+  Access to the panel is restricted until login is completed via login.html.
 
-## API Endpointleri
+## API Endpoints
 
-- `GET /api/outputs` — Çıkış durumlarını alır
-- `GET /api/inputs` — Giriş durumlarını alır
-- `POST /api/save_groups` — Grup yapılandırmasını kaydeder
-- (Detaylı JSON formatı ve örnekler için kodu inceleyin.)
+- `GET /api/outputs` — Retrieves output states
+- `GET /api/inputs` — Retrieves input states
+- `POST /api/save_groups` — Saves group configuration
+- (See the code for detailed JSON formats and examples.)
 
-## Güvenlik ve Stabilite
+## Security and Stability
 
-- Oturum kontrolü cookie ile sağlanır.
-- Büyük JSON loglama ve stack overflow için önlemler alınmıştır.
-- Tüm girişler ve API istekleri doğrulanır.
+- Session control is managed via cookies.
+- Security measures are in place for large JSON logging and stack overflow.
+- All inputs and API requests are validated.
 
-## Katkı ve Lisans
+## Contribution and License
 
-Katkıda bulunmak için pull request gönderebilir veya issue açabilirsiniz.  
-Lisans bilgisi için lütfen LICENSE dosyasını kontrol edin.
+You can contribute by submitting a pull request or opening an issue.  
+For license information, please check the LICENSE file.
