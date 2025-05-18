@@ -289,6 +289,29 @@
     @media (max-width: 600px) {
       .groups { grid-template-columns: 1fr; }
     }
+    .edit-io {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      padding: 3px 10px 3px 8px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: background 0.18s, color 0.18s;
+      margin-left: 6px;
+    }
+    .edit-io:hover {
+      background: var(--accent-dark);
+      color: #fff;
+    }
+    .edit-io .icon {
+      font-size: 15px;
+      margin-right: 2px;
+      display: inline-block;
+    }
   </style>
 </head>
 <body>
@@ -318,8 +341,8 @@
           id: Date.now() + Math.random(),
           name: 'Yeni Panjur',
           type: 'panjur',
-          inputs: [],
-          outputs: ['Yukarı', 'Aşağı'], // Panjurda sabit iki çıkış
+          inputs: ['Yukarı', 'Aşağı'], // 2 giriş
+          outputs: ['Yukarı', 'Aşağı'], // 2 çıkış
           state: 'dur'
         });
       } else {
@@ -351,6 +374,7 @@
     function addIO(id, ioType) {
       const g = groups.find(g => g.id === id);
       if (!g) return;
+      if (g.type === 'panjur') return; // Panjurda ekleme yok
       const ioList = ioType === 'input' ? g.inputs : g.outputs;
       const ioName = prompt(ioType === 'input' ? 'Giriş adı veya numarası:' : 'Çıkış adı veya numarası:');
       if (ioName) ioList.push(ioName);
@@ -361,6 +385,7 @@
     function removeIO(id, ioType, ioIdx) {
       const g = groups.find(g => g.id === id);
       if (!g) return;
+      if (g.type === 'panjur') return; // Panjurda silme yok
       const ioList = ioType === 'input' ? g.inputs : g.outputs;
       ioList.splice(ioIdx, 1);
       saveGroups();
@@ -424,50 +449,61 @@
         const card = document.createElement('div');
         card.className = 'group-card';
         card.innerHTML = `
-          <button class="remove-group" title="Sil" onclick="removeGroup(${g.id})">&times;</button>
-          <input class="group-name-input" value="${g.name}" onchange="updateGroupName(${g.id}, this.value)">
-          <div class="group-type">${g.type === 'aydinlatma' ? 'Aydınlatma' : 'Panjur'}</div>
-          <div class="io-list">
+          <button class=\"remove-group\" title=\"Sil\" onclick=\"removeGroup(${g.id})\">&times;</button>
+          <input class=\"group-name-input\" value=\"${g.name}\" onchange=\"updateGroupName(${g.id}, this.value)\">
+          <div class=\"group-type\">${g.type === 'aydinlatma' ? 'Aydınlatma' : 'Panjur'}</div>
+          <div class=\"io-list\">
             <label>Girişler:</label>
             <ul>
-              ${g.inputs.map((inp, idx) => `<li>${inp} <button class='remove-io' onclick='removeIO(${g.id}, \"input\", ${idx})'>&times;</button></li>`).join('')}
+              ${g.type === 'aydinlatma' ?
+                g.inputs.map((inp, idx) => `<li>${inp} <button class='remove-io' onclick='removeIO(${g.id}, \\\"input\\\", ${idx})'>&times;</button></li>`).join('') :
+                g.inputs.map((inp, idx) => `<li>${inp || (idx === 0 ? 'Yukarı' : 'Aşağı')} <button class='edit-io' data-id='${g.id}' data-type='input' data-idx='${idx}'><span class='icon'>✏️</span>Düzenle</button></li>`).join('')
+              }
             </ul>
-            <button class="add-io" onclick="addIO(${g.id}, 'input')">Giriş Ekle</button>
+            ${g.type === 'aydinlatma' ? `<button class=\"add-io\" onclick=\"addIO(${g.id}, 'input')\">Giriş Ekle</button>` : ''}
           </div>
-          <div class="io-list">
+          <div class=\"io-list\">
             <label>Çıkışlar:</label>
             <ul>
               ${g.type === 'aydinlatma' ?
-                g.outputs.map((outp, idx) => `<li>${outp} <button class='remove-io' onclick='removeIO(${g.id}, \"output\", ${idx})'>&times;</button></li>`).join('') :
-                g.outputs.map((outp, idx) => `<li>${outp}</li>`).join('')
+                g.outputs.map((outp, idx) => `<li>${outp} <button class='remove-io' onclick='removeIO(${g.id}, \\\"output\\\", ${idx})'>&times;</button></li>`).join('') :
+                g.outputs.map((outp, idx) => `<li>${outp || (idx === 0 ? 'Yukarı' : 'Aşağı')} <button class='edit-io' data-id='${g.id}' data-type='output' data-idx='${idx}'><span class='icon'>✏️</span>Düzenle</button></li>`).join('')
               }
             </ul>
-            ${g.type === 'aydinlatma' ? `<button class="add-io" onclick="addIO(${g.id}, 'output')">Çıkış Ekle</button>` : `<button class="add-io" onclick="editPanjurOutputs(${g.id})">Çıkışları Düzenle</button>`}
+            ${g.type === 'aydinlatma' ? `<button class=\"add-io\" onclick=\"addIO(${g.id}, 'output')\">Çıkış Ekle</button>` : ''}
           </div>
-          <div class="group-controls">
+          <div class=\"group-controls\">
             ${g.type === 'aydinlatma' ?
-              `<button onclick="toggleAydinlatma(${g.id})">${g.state ? 'Kapat' : 'Aç'}</button>` :
-              `<button onclick="panjurAction(${g.id}, 'up')">Yukarı</button>
-               <button class='stop' onclick="panjurAction(${g.id}, 'dur')">Dur</button>
-               <button onclick="panjurAction(${g.id}, 'down')">Aşağı</button>`
+              `<button onclick=\"toggleAydinlatma(${g.id})\">${g.state ? 'Kapat' : 'Aç'}</button>` :
+              `<button onclick=\"panjurAction(${g.id}, 'up')\">Yukarı</button>
+               <button class='stop' onclick=\"panjurAction(${g.id}, 'dur')\">Dur</button>
+               <button onclick=\"panjurAction(${g.id}, 'down')\">Aşağı</button>`
             }
           </div>
-          <div class="status">Durum: <b>${g.type === 'aydinlatma' ? (g.state ? 'Açık' : 'Kapalı') : (g.state === 'up' ? 'Yukarı' : g.state === 'down' ? 'Aşağı' : 'Duruyor')}</b></div>
+          <div class=\"status\">Durum: <b>${g.type === 'aydinlatma' ? (g.state ? 'Açık' : 'Kapalı') : (g.state === 'up' ? 'Yukarı' : g.state === 'down' ? 'Aşağı' : 'Duruyor')}</b></div>
         `;
         container.appendChild(card);
       });
+      // Tüm edit-io butonlarına event ekle
+      document.querySelectorAll('.edit-io').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const id = Number(this.getAttribute('data-id'));
+          const type = this.getAttribute('data-type');
+          const idx = Number(this.getAttribute('data-idx'));
+          editPanjurIO(id, type, idx);
+        });
+      });
     }
 
-    // Panjur çıkış isimlerini pop-up ile düzenle
-    function editPanjurOutputs(id) {
+    // Panjur giriş/çıkış isimlerini düzenle
+    function editPanjurIO(id, ioType, idx) {
       const g = groups.find(g => g.id === id);
       if (!g) return;
-      const yukari = prompt("Yukarı çıkış ismi veya numarası:", g.outputs[0] || "");
-      if (yukari === null) return;
-      const asagi = prompt("Aşağı çıkış ismi veya numarası:", g.outputs[1] || "");
-      if (asagi === null) return;
-      g.outputs[0] = yukari;
-      g.outputs[1] = asagi;
+      const label = ioType === 'input' ? (idx === 0 ? 'Yukarı giriş ismi veya numarası:' : 'Aşağı giriş ismi veya numarası:') : (idx === 0 ? 'Yukarı çıkış ismi veya numarası:' : 'Aşağı çıkış ismi veya numarası:');
+      const val = prompt(label, (ioType === 'input' ? g.inputs[idx] : g.outputs[idx]) || '');
+      if (val === null) return;
+      if (ioType === 'input') g.inputs[idx] = val;
+      else g.outputs[idx] = val;
       saveGroups();
       renderGroups();
     }
@@ -479,7 +515,7 @@
     window.toggleAydinlatma = toggleAydinlatma;
     window.panjurAction = panjurAction;
     window.closeJsonModal = closeJsonModal;
-    window.editPanjurOutputs = editPanjurOutputs;
+    window.editPanjurIO = editPanjurIO;
 
     renderGroups();
   </script>

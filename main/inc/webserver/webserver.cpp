@@ -122,6 +122,20 @@ esp_err_t WebServer::api_save_groups_handler(httpd_req_t *req) {
         cJSON *group = cJSON_GetArrayItem(root, i);
         cJSON *name = cJSON_GetObjectItem(group, "name");
         cJSON *type = cJSON_GetObjectItem(group, "type");
+        cJSON *inputs = cJSON_GetObjectItem(group, "inputs");
+        cJSON *outputs = cJSON_GetObjectItem(group, "outputs");
+        if (type && strcmp(type->valuestring, "panjur") == 0) {
+            if (!inputs || cJSON_GetArraySize(inputs) != 2) {
+                cJSON_Delete(root);
+                httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Panjurda tam 2 giriş olmalı!");
+                return ESP_FAIL;
+            }
+            if (!outputs || cJSON_GetArraySize(outputs) != 2) {
+                cJSON_Delete(root);
+                httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Panjurda tam 2 çıkış olmalı!");
+                return ESP_FAIL;
+            }
+        }
         ESP_LOGI(TAG, "Grup %d: %s (%s)", i+1, name ? name->valuestring : "-", type ? type->valuestring : "-");
     }
 
