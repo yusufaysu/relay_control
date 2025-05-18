@@ -285,6 +285,11 @@ void Erhernet::pingTask(void* pvParameters) {
     memset(&hint, 0, sizeof(hint));
     memset(&target_addr, 0, sizeof(target_addr));
     getaddrinfo(params->hostname.c_str(), NULL, &hint, &res);
+    if (res == NULL) {
+        ESP_LOGE("PING", "Hostname çözümlenemedi: %s", params->hostname.c_str());
+        vTaskDelete(NULL);
+        return;
+    }
     struct in_addr addr4 = ((struct sockaddr_in*)(res->ai_addr))->sin_addr;
     inet_addr_to_ip4addr(ip_2_ip4(&target_addr), &addr4);
     freeaddrinfo(res);

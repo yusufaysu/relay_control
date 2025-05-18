@@ -18,6 +18,7 @@ idf_component_register(
         esp_timer
         esp_http_server
         spiffs
+        json
 )
 
 # SPIFFS içeriğini yükle

@@ -1,118 +1,138 @@
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <title>Giriş</title>
+  <title>Giriş Yap</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --main-bg: #101c2c;
+      --card-bg: #182848;
+      --accent: #1976d2;
+      --accent-dark: #115293;
+      --text: #e3eafc;
+      --text-light: #b0b8c9;
+      --danger: #e74c3c;
+      --danger-dark: #c0392b;
+      --input-bg: #22304a;
+      --input-border: #2c3e5c;
+    }
     body {
-      font-family: Arial, Helvetica, sans-serif;
-      background-color: black;
+      background: var(--main-bg);
+      font-family: 'Roboto', sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
     }
-    
-    * {
-      box-sizing: border-box;
+    .login-container {
+      background: var(--card-bg);
+      border-radius: 14px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+      padding: 38px 32px 32px 32px;
+      min-width: 320px;
+      max-width: 90vw;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
-    
-    /* Add padding to containers */
-    .container {
-      padding: 16px;
-      background-color: white;
+    h2 {
+      margin: 0 0 24px 0;
+      color: var(--text);
+      font-weight: 700;
+      font-size: 26px;
+      letter-spacing: 1px;
     }
-    
-    /* Full-width input fields */
-    input[type=text], input[type=password] {
+    .login-form {
       width: 100%;
-      padding: 15px;
-      margin: 5px 0 22px 0;
-      display: inline-block;
-      border: none;
-      background: #f1f1f1;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
     }
-    
-    input[type=text]:focus, input[type=password]:focus {
-      background-color: #ddd;
+    .login-form label {
+      font-size: 15px;
+      color: var(--text-light);
+      margin-bottom: 4px;
+    }
+    .login-form input[type="text"],
+    .login-form input[type="password"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid var(--input-border);
+      border-radius: 6px;
+      background: var(--input-bg);
+      color: var(--text);
+      font-size: 16px;
       outline: none;
+      transition: border 0.2s;
     }
-    
-    /* Overwrite default styles of hr */
-    hr {
-      border: 1px solid #f1f1f1;
-      margin-bottom: 25px;
+    .login-form input[type="text"]:focus,
+    .login-form input[type="password"]:focus {
+      border: 1.5px solid var(--accent);
     }
-    
-    /* Set a style for the submit button */
-    .registerbtn {
-      background-color: #04AA6D;
-      color: white;
-      padding: 16px 20px;
-      margin: 8px 0;
+    .login-form button {
+      margin-top: 10px;
+      padding: 12px 0;
       border: none;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 17px;
+      font-weight: bold;
       cursor: pointer;
-      width: 100%;
-      opacity: 0.9;
+      transition: background 0.2s;
+      letter-spacing: 1px;
     }
-    
-    .registerbtn:hover {
-      opacity: 1;
+    .login-form button:active {
+      background: var(--accent-dark);
     }
-    
-    /* Add a blue text color to links */
-    a {
-      color: dodgerblue;
-    }
-    
-    /* Set a grey background color and center the text of the "sign in" section */
-    .signin {
-      background-color: #f1f1f1;
+    .error-message {
+      color: var(--danger);
+      margin-top: 10px;
+      font-size: 15px;
       text-align: center;
+      min-height: 22px;
     }
-    </style>
+  </style>
 </head>
 <body>
-
-  <form id="login-form">
-    <div class="container">
-      <h1>Administrator Login Page</h1>
-
-      <label for="username"><b>Username</b></label>
-      <input type="text" placeholder="Enter Username" name="username" id="username" required>
-
-      <label for="Password"><b>Password</b></label>
-      <input type="password" placeholder="Enter Password" name="Password" id="Password" required>
-  
-      <hr>
-      <p>Need help? <a href="#">Terms & Privacy</a>.</p>
-  
-      <button type="submit" class="registerbtn">Login</button>
-    </div>
-  </form>
-
+  <div class="login-container">
+    <h2>Akıllı Ev Paneli Giriş</h2>
+    <form class="login-form" id="loginForm" autocomplete="off">
+      <div>
+        <label for="username">Kullanıcı Adı</label>
+        <input type="text" id="username" name="username" required autofocus>
+      </div>
+      <div>
+        <label for="password">Şifre</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      <button type="submit">Giriş Yap</button>
+      <div class="error-message" id="errorMsg"></div>
+    </form>
+  </div>
   <script>
-    document.getElementById("login-form").addEventListener("submit", function(e) {
-      e.preventDefault(); // sayfanın yeniden yüklenmesini engelle
-
-      const formData = new FormData(this);
-      const data = new URLSearchParams(formData).toString();
-
-      fetch("/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        body: data
-      })
-      .then(res => res.text())
-      .then(text => {
-        if (text === "OK") {
-          window.location.href = "/panel.html";
-        } else {
-          alert("Kullanıcı adı veya şifre yanlış!");
-        }
-      })
-      .catch(err => {
-        alert("Sunucu hatası: " + err);
+    document.getElementById('loginForm').onsubmit = async function(e) {
+      e.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const formData = `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+      const res = await fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData
       });
-    });
+      const text = await res.text();
+      if (text === 'OK') {
+        window.location.href = '/panel.html';
+      } else {
+        document.getElementById('errorMsg').textContent = 'Kullanıcı adı veya şifre hatalı!';
+      }
+    };
   </script>
 </body>
 </html>
