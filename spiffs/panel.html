@@ -330,33 +330,113 @@
   <script>
     // Geçici olarak localStorage'da tutulan gruplar (backend ile entegre edebilirsin)
     let groups = JSON.parse(localStorage.getItem('groups') || '[]');
+    let isSaving = false; // Kaydetme işlemi devam ediyor mu?
+
+    // Yeni ID oluştur
+    function getNextId() {
+      // Mevcut ID'leri bul
+      const existingIds = groups.map(g => g.id);
+      // 1'den başlayarak ilk boş ID'yi bul
+      let newId = 1;
+      while (existingIds.includes(newId)) {
+        newId++;
+      }
+      return newId;
+    }
 
     function saveGroups() {
-      localStorage.setItem('groups', JSON.stringify(groups));
+      try {
+        localStorage.setItem('groups', JSON.stringify(groups));
+      } catch (error) {
+        console.error('LocalStorage kayıt hatası:', error);
+        alert('Yerel kayıt sırasında bir hata oluştu!');
+      }
+    }
+
+    // Yeniden deneme mekanizması
+    async function retryOperation(operation, maxRetries = 3, delay = 1000) {
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          return await operation();
+        } catch (error) {
+          console.error(`Deneme ${i + 1}/${maxRetries} başarısız:`, error);
+          if (i === maxRetries - 1) throw error;
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    async function saveAllGroups() {
+      if (isSaving) {
+        console.log('Kaydetme işlemi devam ediyor, lütfen bekleyin...');
+        return;
+      }
+
+      isSaving = true;
+      const saveButton = document.querySelector('.save-bar button');
+      const originalText = saveButton.textContent;
+      saveButton.textContent = 'Kaydediliyor...';
+      saveButton.disabled = true;
+
+      try {
+        // Tüm grupları tek seferde gönder
+        const response = await retryOperation(async () => {
+          const res = await fetch('/api/save_groups', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(groups)
+          });
+
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+
+          return res;
+        });
+
+        const result = await response.text();
+        console.log('Kayıt başarılı:', result);
+        alert('Gruplar başarıyla kaydedildi!');
+      } catch (error) {
+        console.error('Kayıt hatası:', error);
+        alert('Kayıt sırasında bir hata oluştu: ' + error.message);
+      } finally {
+        isSaving = false;
+        saveButton.textContent = originalText;
+        saveButton.disabled = false;
+      }
     }
 
     function addGroup(type) {
-      if (type === 'panjur') {
-        groups.push({
-          id: Date.now() + Math.random(),
-          name: 'Yeni Panjur',
-          type: 'panjur',
-          inputs: ['Yukarı', 'Aşağı'], // 2 giriş
-          outputs: ['Yukarı', 'Aşağı'], // 2 çıkış
-          state: 'dur'
-        });
-      } else {
-        groups.push({
-          id: Date.now() + Math.random(),
-          name: 'Yeni Aydınlatma',
-          type: 'aydinlatma',
-          inputs: [],
-          outputs: [],
-          state: false
-        });
+      try {
+        const newId = getNextId();
+        if (type === 'panjur') {
+          groups.push({
+            id: newId,
+            name: 'Yeni Panjur',
+            type: 'panjur',
+            inputs: ['', ''], // 2 giriş
+            outputs: ['', ''], // 2 çıkış
+            state: 'dur'
+          });
+        } else {
+          groups.push({
+            id: newId,
+            name: 'Yeni Aydınlatma',
+            type: 'aydinlatma',
+            inputs: [],
+            outputs: [],
+            state: false
+          });
+        }
+        saveGroups();
+        renderGroups();
+      } catch (error) {
+        console.error('Grup ekleme hatası:', error);
+        alert('Grup eklenirken bir hata oluştu!');
       }
-      saveGroups();
-      renderGroups();
     }
 
     function removeGroup(id) {
@@ -408,14 +488,6 @@
       renderGroups();
     }
 
-    function saveAllGroups() {
-      const json = JSON.stringify(groups, null, 2);
-      // Modal ile göster
-      showJsonModal(json);
-      // İşlemciye gönder (örnek: XMLHttpRequest ile)
-      kaydetJsonuLogla(json);
-    }
-
     function showJsonModal(json) {
       const modal = document.getElementById('jsonModal');
       modal.innerHTML = `<div class='json-modal'><div class='json-modal-content'>
@@ -425,21 +497,38 @@
       </div></div>`;
       modal.style.display = '';
     }
+
     function closeJsonModal() {
       document.getElementById('jsonModal').style.display = 'none';
     }
 
-    // İşlemciye JSON'u loglatmak için örnek fonksiyon
-    function kaydetJsonuLogla(json) {
-      // Burada backend'e gönderebilirsin. Şimdilik log atalım:
-      if (window.XMLHttpRequest) {
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/save_groups', true);
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.send(json);
+    async function kaydetJsonuLogla(json) {
+      try {
+        const response = await retryOperation(async () => {
+          const res = await fetch('/api/save_groups', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: json,
+            timeout: 10000 // 10 saniye timeout
+          });
+
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+
+          return res;
+        });
+
+        const result = await response.text();
+        console.log('KAYDEDİLEN JSON:', json);
+        console.log('Sunucu yanıtı:', result);
+        return result;
+      } catch (error) {
+        console.error('Kayıt hatası:', error);
+        throw error;
       }
-      // Konsola da yaz:
-      console.log('KAYDEDİLEN JSON:', json);
     }
 
     function renderGroups() {
@@ -456,8 +545,8 @@
             <label>Girişler:</label>
             <ul>
               ${g.type === 'aydinlatma' ?
-                g.inputs.map((inp, idx) => `<li>${inp} <button class='remove-io' onclick='removeIO(${g.id}, \\\"input\\\", ${idx})'>&times;</button></li>`).join('') :
-                g.inputs.map((inp, idx) => `<li>${inp || (idx === 0 ? 'Yukarı' : 'Aşağı')} <button class='edit-io' data-id='${g.id}' data-type='input' data-idx='${idx}'><span class='icon'>✏️</span>Düzenle</button></li>`).join('')
+                g.inputs.map((inp, idx) => `<li>${inp} <button class='remove-io' onclick='removeIO(${g.id}, "input", ${idx})'>&times;</button></li>`).join('') :
+                g.inputs.map((inp, idx) => `<li>${idx === 0 ? 'Yukarı giriş: ' : 'Aşağı giriş: '}${inp || ''} <button class='edit-io' data-id='${g.id}' data-type='input' data-idx='${idx}'><span class='icon'>✏️</span>Düzenle</button></li>`).join('')
               }
             </ul>
             ${g.type === 'aydinlatma' ? `<button class=\"add-io\" onclick=\"addIO(${g.id}, 'input')\">Giriş Ekle</button>` : ''}
@@ -466,8 +555,8 @@
             <label>Çıkışlar:</label>
             <ul>
               ${g.type === 'aydinlatma' ?
-                g.outputs.map((outp, idx) => `<li>${outp} <button class='remove-io' onclick='removeIO(${g.id}, \\\"output\\\", ${idx})'>&times;</button></li>`).join('') :
-                g.outputs.map((outp, idx) => `<li>${outp || (idx === 0 ? 'Yukarı' : 'Aşağı')} <button class='edit-io' data-id='${g.id}' data-type='output' data-idx='${idx}'><span class='icon'>✏️</span>Düzenle</button></li>`).join('')
+                g.outputs.map((outp, idx) => `<li>${outp} <button class='remove-io' onclick='removeIO(${g.id}, "output", ${idx})'>&times;</button></li>`).join('') :
+                g.outputs.map((outp, idx) => `<li>${idx === 0 ? 'Yukarı çıkış: ' : 'Aşağı çıkış: '}${outp || ''} <button class='edit-io' data-id='${g.id}' data-type='output' data-idx='${idx}'><span class='icon'>✏️</span>Düzenle</button></li>`).join('')
               }
             </ul>
             ${g.type === 'aydinlatma' ? `<button class=\"add-io\" onclick=\"addIO(${g.id}, 'output')\">Çıkış Ekle</button>` : ''}
@@ -499,7 +588,9 @@
     function editPanjurIO(id, ioType, idx) {
       const g = groups.find(g => g.id === id);
       if (!g) return;
-      const label = ioType === 'input' ? (idx === 0 ? 'Yukarı giriş ismi veya numarası:' : 'Aşağı giriş ismi veya numarası:') : (idx === 0 ? 'Yukarı çıkış ismi veya numarası:' : 'Aşağı çıkış ismi veya numarası:');
+      const label = ioType === 'input' ? 
+        (idx === 0 ? 'Yukarı giriş ismi veya numarası:' : 'Aşağı giriş ismi veya numarası:') : 
+        (idx === 0 ? 'Yukarı çıkış ismi veya numarası:' : 'Aşağı çıkış ismi veya numarası:');
       const val = prompt(label, (ioType === 'input' ? g.inputs[idx] : g.outputs[idx]) || '');
       if (val === null) return;
       if (ioType === 'input') g.inputs[idx] = val;

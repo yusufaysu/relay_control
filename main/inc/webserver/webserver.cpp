@@ -98,49 +98,168 @@ esp_err_t WebServer::api_inputs_handler(httpd_req_t *req) {
 }
 
 esp_err_t WebServer::api_save_groups_handler(httpd_req_t *req) {
-    char buf[2048];
-    int len = req->content_len;
-    if (len >= (int)sizeof(buf)) len = sizeof(buf) - 1;
-    int received = httpd_req_recv(req, buf, len);
+    ESP_LOGI(TAG, "Grup kaydetme isteği alındı");
+    
+    // Buffer boyutunu artırıyoruz
+    char *buf = (char*)malloc(req->content_len + 1);
+    if (!buf) {
+        ESP_LOGE(TAG, "Bellek yetersiz! İstenen boyut: %d", req->content_len);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Bellek yetersiz");
+        return ESP_FAIL;
+    }
+
+    int received = httpd_req_recv(req, buf, req->content_len);
     if (received <= 0) {
+        ESP_LOGE(TAG, "Veri alınamadı! Hata kodu: %d", received);
+        free(buf);
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Veri alınamadı");
         return ESP_FAIL;
     }
     buf[received] = '\0';
 
+    // Gelen veriyi logla
+    ESP_LOGI(TAG, "Gelen JSON verisi (%d byte): %s", received, buf);
+
+    // JSON verisinin geçerli olup olmadığını kontrol et
+    if (buf[0] != '[') {
+        ESP_LOGE(TAG, "Geçersiz JSON formatı: Başlangıç karakteri hatalı");
+        free(buf);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Geçersiz JSON formatı");
+        return ESP_FAIL;
+    }
+
+    // JSON verisini düzeltmeye çalış
+    if (buf[received-1] != ']') {
+        // Son karakteri ] yap
+        buf[received-1] = ']';
+        buf[received] = '\0';
+        ESP_LOGW(TAG, "JSON verisi düzeltildi");
+    }
+
     cJSON *root = cJSON_Parse(buf);
+    free(buf); // Buffer'ı hemen serbest bırakıyoruz
+
     if (!root) {
-        ESP_LOGE(TAG, "Geçersiz JSON!");
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Geçersiz JSON");
+        const char *error_ptr = cJSON_GetErrorPtr();
+        if (error_ptr) {
+            ESP_LOGE(TAG, "JSON Parse hatası: %s", error_ptr);
+            ESP_LOGE(TAG, "Hata konumu: %s", error_ptr);
+        }
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Geçersiz JSON formatı");
+        return ESP_FAIL;
+    }
+
+    if (!cJSON_IsArray(root)) {
+        ESP_LOGE(TAG, "JSON bir dizi değil!");
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "JSON bir dizi olmalı");
         return ESP_FAIL;
     }
 
     int group_count = cJSON_GetArraySize(root);
-    ESP_LOGI(TAG, "Toplam %d grup kaydedildi.", group_count);
+    ESP_LOGI(TAG, "Toplam %d grup işlenecek", group_count);
+
+    // Geçerli grup sayısını takip et
+    int valid_groups = 0;
+    int aydinlatma_count = 0;
+    int panjur_count = 0;
 
     for (int i = 0; i < group_count; ++i) {
         cJSON *group = cJSON_GetArrayItem(root, i);
+        if (!cJSON_IsObject(group)) {
+            ESP_LOGW(TAG, "Grup %d bir obje değil, atlanıyor", i+1);
+            continue;
+        }
+
+        cJSON *id = cJSON_GetObjectItem(group, "id");
         cJSON *name = cJSON_GetObjectItem(group, "name");
         cJSON *type = cJSON_GetObjectItem(group, "type");
         cJSON *inputs = cJSON_GetObjectItem(group, "inputs");
         cJSON *outputs = cJSON_GetObjectItem(group, "outputs");
-        if (type && strcmp(type->valuestring, "panjur") == 0) {
-            if (!inputs || cJSON_GetArraySize(inputs) != 2) {
-                cJSON_Delete(root);
-                httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Panjurda tam 2 giriş olmalı!");
-                return ESP_FAIL;
-            }
-            if (!outputs || cJSON_GetArraySize(outputs) != 2) {
-                cJSON_Delete(root);
-                httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Panjurda tam 2 çıkış olmalı!");
-                return ESP_FAIL;
+
+        // Her alanın varlığını ve tipini kontrol et
+        if (!id || !cJSON_IsNumber(id)) {
+            ESP_LOGW(TAG, "Grup %d: id alanı eksik veya sayı değil, atlanıyor", i+1);
+            continue;
+        }
+        if (!name || !cJSON_IsString(name)) {
+            ESP_LOGW(TAG, "Grup %d: name alanı eksik veya string değil, atlanıyor", i+1);
+            continue;
+        }
+        if (!type || !cJSON_IsString(type)) {
+            ESP_LOGW(TAG, "Grup %d: type alanı eksik veya string değil, atlanıyor", i+1);
+            continue;
+        }
+        if (!inputs || !cJSON_IsArray(inputs)) {
+            ESP_LOGW(TAG, "Grup %d: inputs alanı eksik veya dizi değil, atlanıyor", i+1);
+            continue;
+        }
+        if (!outputs || !cJSON_IsArray(outputs)) {
+            ESP_LOGW(TAG, "Grup %d: outputs alanı eksik veya dizi değil, atlanıyor", i+1);
+            continue;
+        }
+
+        // Giriş ve çıkışları logla
+        ESP_LOGI(TAG, "Grup ID: %d, İsim: %s, Tip: %s", 
+                 (int)id->valuedouble, name->valuestring, type->valuestring);
+        
+        // Girişleri logla
+        ESP_LOGI(TAG, "Girişler:");
+        for (int j = 0; j < cJSON_GetArraySize(inputs); j++) {
+            cJSON *input = cJSON_GetArrayItem(inputs, j);
+            if (cJSON_IsString(input)) {
+                if (strcmp(type->valuestring, "panjur") == 0) {
+                    ESP_LOGI(TAG, "  - %s giriş: %s", j == 0 ? "Yukarı" : "Aşağı", input->valuestring);
+                } else {
+                    ESP_LOGI(TAG, "  - %s", input->valuestring);
+                }
             }
         }
-        ESP_LOGI(TAG, "Grup %d: %s (%s)", i+1, name ? name->valuestring : "-", type ? type->valuestring : "-");
+
+        // Çıkışları logla
+        ESP_LOGI(TAG, "Çıkışlar:");
+        for (int j = 0; j < cJSON_GetArraySize(outputs); j++) {
+            cJSON *output = cJSON_GetArrayItem(outputs, j);
+            if (cJSON_IsString(output)) {
+                if (strcmp(type->valuestring, "panjur") == 0) {
+                    ESP_LOGI(TAG, "  - %s çıkış: %s", j == 0 ? "Yukarı" : "Aşağı", output->valuestring);
+                } else {
+                    ESP_LOGI(TAG, "  - %s", output->valuestring);
+                }
+            }
+        }
+
+        if (strcmp(type->valuestring, "panjur") == 0) {
+            if (cJSON_GetArraySize(inputs) != 2) {
+                ESP_LOGW(TAG, "Grup %d: Panjur için 2 giriş gerekli, %d giriş var, atlanıyor", 
+                         i+1, cJSON_GetArraySize(inputs));
+                continue;
+            }
+            if (cJSON_GetArraySize(outputs) != 2) {
+                ESP_LOGW(TAG, "Grup %d: Panjur için 2 çıkış gerekli, %d çıkış var, atlanıyor", 
+                         i+1, cJSON_GetArraySize(outputs));
+                continue;
+            }
+            panjur_count++;
+        } else if (strcmp(type->valuestring, "aydinlatma") == 0) {
+            aydinlatma_count++;
+        }
+
+        // Grup geçerli, işle
+        valid_groups++;
+        ESP_LOGI(TAG, "Grup %d başarıyla işlendi", (int)id->valuedouble);
     }
 
     cJSON_Delete(root);
 
+    if (valid_groups == 0) {
+        ESP_LOGE(TAG, "Hiç geçerli grup bulunamadı!");
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Hiç geçerli grup bulunamadı");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "Kayıt tamamlandı: Toplam %d grup (%d aydınlatma, %d panjur)", 
+             valid_groups, aydinlatma_count, panjur_count);
     httpd_resp_sendstr(req, "OK");
     return ESP_OK;
 }
