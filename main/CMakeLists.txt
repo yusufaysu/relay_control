@@ -4,6 +4,7 @@ idf_component_register(
         "inc/ethernet/ethernet.cpp"
         "inc/mcp23017/mcp23017.cpp"
         "inc/webserver/webserver.cpp"
+        "lib_header.cpp"
     INCLUDE_DIRS 
         "."
         "inc"

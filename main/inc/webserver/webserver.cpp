@@ -176,6 +176,8 @@ esp_err_t WebServer::api_save_groups_handler(httpd_req_t *req) {
         cJSON *type = cJSON_GetObjectItem(group, "type");
         cJSON *inputs = cJSON_GetObjectItem(group, "inputs");
         cJSON *outputs = cJSON_GetObjectItem(group, "outputs");
+        cJSON *inputType = cJSON_GetObjectItem(group, "inputType");
+        cJSON *timer = cJSON_GetObjectItem(group, "timer");
 
         // Her alanın varlığını ve tipini kontrol et
         if (!id || !cJSON_IsNumber(id)) {
@@ -199,9 +201,29 @@ esp_err_t WebServer::api_save_groups_handler(httpd_req_t *req) {
             continue;
         }
 
+        // Anahtar tipini kontrol et ve logla
+        const char* inputTypeStr = "normal"; // Varsayılan değer
+        if (inputType && cJSON_IsString(inputType)) {
+            inputTypeStr = inputType->valuestring;
+        } else {
+            ESP_LOGW(TAG, "Grup %d: inputType alanı eksik veya string değil, varsayılan 'normal' kullanılacak", i+1);
+        }
+
         // Giriş ve çıkışları logla
         ESP_LOGI(TAG, "Grup ID: %d, İsim: %s, Tip: %s", 
                  (int)id->valuedouble, name->valuestring, type->valuestring);
+        
+        // Anahtar tipini logla
+        ESP_LOGI(TAG, "Anahtar Tipi: %s", inputTypeStr);
+
+        // Timer süresini logla (sadece panjur için)
+        if (strcmp(type->valuestring, "panjur") == 0) {
+            if (timer && cJSON_IsNumber(timer)) {
+                ESP_LOGI(TAG, "Timer Süresi: %d saniye", (int)timer->valuedouble);
+            } else {
+                ESP_LOGI(TAG, "Timer Süresi: 0 saniye (varsayılan)");
+            }
+        }
         
         // Girişleri logla
         ESP_LOGI(TAG, "Girişler:");

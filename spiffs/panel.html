@@ -312,6 +312,34 @@
       margin-right: 2px;
       display: inline-block;
     }
+    .group-settings {
+      margin: 10px 0;
+      padding: 10px;
+      background: var(--input-bg);
+      border-radius: 6px;
+    }
+    .setting-item {
+      margin-bottom: 8px;
+    }
+    .setting-item label {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--text-light);
+      font-size: 14px;
+    }
+    .setting-item select,
+    .setting-item input {
+      width: 100%;
+      padding: 6px;
+      border: 1px solid var(--input-border);
+      border-radius: 4px;
+      background: var(--card-bg);
+      color: var(--text);
+      font-size: 14px;
+    }
+    .setting-item input[type="number"] {
+      width: 80px;
+    }
   </style>
 </head>
 <body>
@@ -417,9 +445,11 @@
             id: newId,
             name: 'Yeni Panjur',
             type: 'panjur',
-            inputs: ['', ''], // 2 giriş
-            outputs: ['', ''], // 2 çıkış
-            state: 'dur'
+            inputs: ['', ''],
+            outputs: ['', ''],
+            state: 'dur',
+            timer: 0,
+            inputType: 'normal'
           });
         } else {
           groups.push({
@@ -428,7 +458,8 @@
             type: 'aydinlatma',
             inputs: [],
             outputs: [],
-            state: false
+            state: false,
+            inputType: 'normal'
           });
         }
         saveGroups();
@@ -531,6 +562,24 @@
       }
     }
 
+    function updateInputType(id, type) {
+      const g = groups.find(g => g.id === id);
+      if (g) {
+        g.inputType = type;
+        saveGroups();
+        renderGroups();
+      }
+    }
+
+    function updatePanjurTimer(id, value) {
+      const g = groups.find(g => g.id === id);
+      if (g && g.type === 'panjur') {
+        g.timer = parseInt(value) || 0;
+        saveGroups();
+        renderGroups();
+      }
+    }
+
     function renderGroups() {
       const container = document.getElementById('groups');
       container.innerHTML = '';
@@ -560,6 +609,21 @@
               }
             </ul>
             ${g.type === 'aydinlatma' ? `<button class=\"add-io\" onclick=\"addIO(${g.id}, 'output')\">Çıkış Ekle</button>` : ''}
+          </div>
+          <div class=\"group-settings\">
+            <div class=\"setting-item\">
+              <label>Anahtar Tipi:</label>
+              <select onchange=\"updateInputType(${g.id}, this.value)\">
+                <option value=\"normal\" ${g.inputType === 'normal' ? 'selected' : ''}>Normal Anahtar</option>
+                <option value=\"impuls\" ${g.inputType === 'impuls' ? 'selected' : ''}>Yaylı (İmpuls) Anahtar</option>
+              </select>
+            </div>
+            ${g.type === 'panjur' ? `
+              <div class=\"setting-item\">
+                <label>Timer Süresi (saniye):</label>
+                <input type=\"number\" min=\"0\" value=\"${g.timer}\" onchange=\"updatePanjurTimer(${g.id}, this.value)\">
+              </div>
+            ` : ''}
           </div>
           <div class=\"group-controls\">
             ${g.type === 'aydinlatma' ?
