@@ -81,22 +81,6 @@ esp_err_t WebServer::toggle_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
-esp_err_t WebServer::api_outputs_handler(httpd_req_t *req) {
-    // 32 çıkışın durumunu ve ayarlarını JSON olarak hazırla
-    const char* resp = "[{\"name\":\"Salon Lamba\",\"type\":\"aydinlatma\",\"state\":true}, {\"name\":\"Mutfak Panjur\",\"type\":\"panjur\",\"state\":\"dur\"}]";
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
-    return ESP_OK;
-}
-
-esp_err_t WebServer::api_inputs_handler(httpd_req_t *req) {
-    // 32 girişin durumunu JSON olarak hazırla
-    const char* resp = "[{\"active\":true}, {\"active\":false}]";
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
-    return ESP_OK;
-}
-
 esp_err_t WebServer::api_save_groups_handler(httpd_req_t *req) {
     ESP_LOGI(TAG, "Grup kaydetme isteği alındı");
     
@@ -379,22 +363,6 @@ esp_err_t WebServer::begin() {
         .user_ctx = NULL
     };
     httpd_register_uri_handler(server, &panel_html);
-
-    httpd_uri_t outputs_uri = {
-        .uri      = "/api/outputs",
-        .method   = HTTP_GET,
-        .handler  = api_outputs_handler,
-        .user_ctx = NULL
-    };
-    httpd_register_uri_handler(server, &outputs_uri);
-
-    httpd_uri_t inputs_uri = {
-        .uri      = "/api/inputs",
-        .method   = HTTP_GET,
-        .handler  = api_inputs_handler,
-        .user_ctx = NULL
-    };
-    httpd_register_uri_handler(server, &inputs_uri);
 
     // Yeni endpoint: /api/save_groups
     httpd_uri_t save_groups_uri = {

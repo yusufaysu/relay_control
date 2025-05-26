@@ -23,8 +23,6 @@ private:
     static esp_err_t file_handler(httpd_req_t *req);
     static esp_err_t redirect_to_login(httpd_req_t *req);
     static esp_err_t toggle_handler(httpd_req_t *req);
-    static esp_err_t api_outputs_handler(httpd_req_t *req);
-    static esp_err_t api_inputs_handler(httpd_req_t *req);
     static esp_err_t api_save_groups_handler(httpd_req_t *req);
     httpd_handle_t server;
 };
