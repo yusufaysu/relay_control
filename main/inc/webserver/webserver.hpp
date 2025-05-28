@@ -6,6 +6,8 @@
 #include "esp_spiffs.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "nvs_flash.h"
+#include "nvs.h"
 #include <string.h>
 #include <algorithm>
 
@@ -24,5 +26,8 @@ private:
     static esp_err_t redirect_to_login(httpd_req_t *req);
     static esp_err_t toggle_handler(httpd_req_t *req);
     static esp_err_t api_save_groups_handler(httpd_req_t *req);
+    static esp_err_t api_delete_groups_handler(httpd_req_t *req);
+    static esp_err_t api_get_groups_handler(httpd_req_t *req);
+    static esp_err_t api_group_action_handler(httpd_req_t *req);
     httpd_handle_t server;
 };

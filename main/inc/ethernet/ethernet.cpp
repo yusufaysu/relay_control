@@ -146,7 +146,7 @@ bool Erhernet::begin() {
     eth_netif_ = esp_netif_new(&netif_cfg);
 
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-    ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &ethEventHandler, eth_netif_));
+    ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &ethEventHandler, this));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &gotIpEventHandler, this));
 
     spi_bus_config_t buscfg = {};
@@ -155,7 +155,7 @@ bool Erhernet::begin() {
     buscfg.sclk_io_num = ETH_SCLK;
     buscfg.quadwp_io_num = -1;
     buscfg.quadhd_io_num = -1;
-    buscfg.max_transfer_sz = 4000;
+    buscfg.max_transfer_sz = 1600;
     ESP_ERROR_CHECK(spi_bus_initialize(HOST, &buscfg, SPI_DMA_CH_AUTO));
 
     spi_device_interface_config_t spi_devcfg = {};
@@ -172,8 +172,9 @@ bool Erhernet::begin() {
     esp_eth_mac_t* mac = esp_eth_mac_new_enc28j60(&enc28j60_config, &mac_config);
 
     eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
-    phy_config.autonego_timeout_ms = 0;
+    phy_config.autonego_timeout_ms = 5000;
     phy_config.reset_gpio_num = -1;
+    phy_config.phy_addr = 0;
     esp_eth_phy_t* phy = esp_eth_phy_new_enc28j60(&phy_config);
 
     esp_eth_config_t eth_config = ETH_DEFAULT_CONFIG(mac, phy);
@@ -316,12 +317,31 @@ void Erhernet::pingTask(void* pvParameters) {
  * @brief Handle Ethernet driver events such as connect/disconnect.
  */
 void Erhernet::ethEventHandler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
+    static uint32_t reconnect_attempts = 0;
+    const uint32_t MAX_RECONNECT_ATTEMPTS = 5;
+    const uint32_t RECONNECT_DELAY_MS = 2000;
+    auto* eth = static_cast<Erhernet*>(arg);
+
     switch (event_id) {
         case ETHERNET_EVENT_CONNECTED:
             ESP_LOGI(TAG, "Ethernet connected");
+            reconnect_attempts = 0;
             break;
         case ETHERNET_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "Ethernet disconnected");
+            if (reconnect_attempts < MAX_RECONNECT_ATTEMPTS) {
+                reconnect_attempts++;
+                ESP_LOGI(TAG, "Yeniden bağlanma denemesi %lu/%lu", reconnect_attempts, MAX_RECONNECT_ATTEMPTS);
+                vTaskDelay(pdMS_TO_TICKS(RECONNECT_DELAY_MS));
+                if (eth->eth_handle_) {
+                    esp_eth_stop(eth->eth_handle_);
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                    esp_eth_start(eth->eth_handle_);
+                }
+            } else {
+                ESP_LOGE(TAG, "Maksimum yeniden bağlanma denemesi aşıldı");
+                reconnect_attempts = 0;
+            }
             break;
         case ETHERNET_EVENT_START:
             ESP_LOGI(TAG, "Ethernet started");

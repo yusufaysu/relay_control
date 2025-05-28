@@ -101,172 +101,122 @@ esp_err_t WebServer::api_save_groups_handler(httpd_req_t *req) {
     }
     buf[received] = '\0';
 
-    // Gelen veriyi logla
-    ESP_LOGI(TAG, "Gelen JSON verisi (%d byte): %s", received, buf);
-
-    // JSON verisinin geçerli olup olmadığını kontrol et
-    if (buf[0] != '[') {
-        ESP_LOGE(TAG, "Geçersiz JSON formatı: Başlangıç karakteri hatalı");
+    // NVS'ye kaydet
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "NVS açılamadı: %s", esp_err_to_name(err));
         free(buf);
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Geçersiz JSON formatı");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "NVS açılamadı");
         return ESP_FAIL;
     }
 
-    // JSON verisini düzeltmeye çalış
-    if (buf[received-1] != ']') {
-        // Son karakteri ] yap
-        buf[received-1] = ']';
-        buf[received] = '\0';
-        ESP_LOGW(TAG, "JSON verisi düzeltildi");
-    }
-
-    cJSON *root = cJSON_Parse(buf);
-    free(buf); // Buffer'ı hemen serbest bırakıyoruz
-
-    if (!root) {
-        const char *error_ptr = cJSON_GetErrorPtr();
-        if (error_ptr) {
-            ESP_LOGE(TAG, "JSON Parse hatası: %s", error_ptr);
-            ESP_LOGE(TAG, "Hata konumu: %s", error_ptr);
-        }
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Geçersiz JSON formatı");
+    err = nvs_set_blob(nvs_handle, "groups", buf, received);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "NVS'ye yazılamadı: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        free(buf);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "NVS'ye yazılamadı");
         return ESP_FAIL;
     }
 
-    if (!cJSON_IsArray(root)) {
-        ESP_LOGE(TAG, "JSON bir dizi değil!");
-        cJSON_Delete(root);
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "JSON bir dizi olmalı");
+    err = nvs_commit(nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "NVS commit başarısız: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        free(buf);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "NVS commit başarısız");
         return ESP_FAIL;
     }
 
-    int group_count = cJSON_GetArraySize(root);
-    ESP_LOGI(TAG, "Toplam %d grup işlenecek", group_count);
-
-    // Geçerli grup sayısını takip et
-    int valid_groups = 0;
-    int aydinlatma_count = 0;
-    int panjur_count = 0;
-
-    for (int i = 0; i < group_count; ++i) {
-        cJSON *group = cJSON_GetArrayItem(root, i);
-        if (!cJSON_IsObject(group)) {
-            ESP_LOGW(TAG, "Grup %d bir obje değil, atlanıyor", i+1);
-            continue;
-        }
-
-        cJSON *id = cJSON_GetObjectItem(group, "id");
-        cJSON *name = cJSON_GetObjectItem(group, "name");
-        cJSON *type = cJSON_GetObjectItem(group, "type");
-        cJSON *inputs = cJSON_GetObjectItem(group, "inputs");
-        cJSON *outputs = cJSON_GetObjectItem(group, "outputs");
-        cJSON *inputType = cJSON_GetObjectItem(group, "inputType");
-        cJSON *timer = cJSON_GetObjectItem(group, "timer");
-
-        // Her alanın varlığını ve tipini kontrol et
-        if (!id || !cJSON_IsNumber(id)) {
-            ESP_LOGW(TAG, "Grup %d: id alanı eksik veya sayı değil, atlanıyor", i+1);
-            continue;
-        }
-        if (!name || !cJSON_IsString(name)) {
-            ESP_LOGW(TAG, "Grup %d: name alanı eksik veya string değil, atlanıyor", i+1);
-            continue;
-        }
-        if (!type || !cJSON_IsString(type)) {
-            ESP_LOGW(TAG, "Grup %d: type alanı eksik veya string değil, atlanıyor", i+1);
-            continue;
-        }
-        if (!inputs || !cJSON_IsArray(inputs)) {
-            ESP_LOGW(TAG, "Grup %d: inputs alanı eksik veya dizi değil, atlanıyor", i+1);
-            continue;
-        }
-        if (!outputs || !cJSON_IsArray(outputs)) {
-            ESP_LOGW(TAG, "Grup %d: outputs alanı eksik veya dizi değil, atlanıyor", i+1);
-            continue;
-        }
-
-        // Anahtar tipini kontrol et ve logla
-        const char* inputTypeStr = "normal"; // Varsayılan değer
-        if (inputType && cJSON_IsString(inputType)) {
-            inputTypeStr = inputType->valuestring;
-        } else {
-            ESP_LOGW(TAG, "Grup %d: inputType alanı eksik veya string değil, varsayılan 'normal' kullanılacak", i+1);
-        }
-
-        // Giriş ve çıkışları logla
-        ESP_LOGI(TAG, "Grup ID: %d, İsim: %s, Tip: %s", 
-                 (int)id->valuedouble, name->valuestring, type->valuestring);
-        
-        // Anahtar tipini logla
-        ESP_LOGI(TAG, "Anahtar Tipi: %s", inputTypeStr);
-
-        // Timer süresini logla (sadece panjur için)
-        if (strcmp(type->valuestring, "panjur") == 0) {
-            if (timer && cJSON_IsNumber(timer)) {
-                ESP_LOGI(TAG, "Timer Süresi: %d saniye", (int)timer->valuedouble);
-            } else {
-                ESP_LOGI(TAG, "Timer Süresi: 0 saniye (varsayılan)");
-            }
-        }
-        
-        // Girişleri logla
-        ESP_LOGI(TAG, "Girişler:");
-        for (int j = 0; j < cJSON_GetArraySize(inputs); j++) {
-            cJSON *input = cJSON_GetArrayItem(inputs, j);
-            if (cJSON_IsString(input)) {
-                if (strcmp(type->valuestring, "panjur") == 0) {
-                    ESP_LOGI(TAG, "  - %s giriş: %s", j == 0 ? "Yukarı" : "Aşağı", input->valuestring);
-                } else {
-                    ESP_LOGI(TAG, "  - %s", input->valuestring);
-                }
-            }
-        }
-
-        // Çıkışları logla
-        ESP_LOGI(TAG, "Çıkışlar:");
-        for (int j = 0; j < cJSON_GetArraySize(outputs); j++) {
-            cJSON *output = cJSON_GetArrayItem(outputs, j);
-            if (cJSON_IsString(output)) {
-                if (strcmp(type->valuestring, "panjur") == 0) {
-                    ESP_LOGI(TAG, "  - %s çıkış: %s", j == 0 ? "Yukarı" : "Aşağı", output->valuestring);
-                } else {
-                    ESP_LOGI(TAG, "  - %s", output->valuestring);
-                }
-            }
-        }
-
-        if (strcmp(type->valuestring, "panjur") == 0) {
-            if (cJSON_GetArraySize(inputs) != 2) {
-                ESP_LOGW(TAG, "Grup %d: Panjur için 2 giriş gerekli, %d giriş var, atlanıyor", 
-                         i+1, cJSON_GetArraySize(inputs));
-                continue;
-            }
-            if (cJSON_GetArraySize(outputs) != 2) {
-                ESP_LOGW(TAG, "Grup %d: Panjur için 2 çıkış gerekli, %d çıkış var, atlanıyor", 
-                         i+1, cJSON_GetArraySize(outputs));
-                continue;
-            }
-            panjur_count++;
-        } else if (strcmp(type->valuestring, "aydinlatma") == 0) {
-            aydinlatma_count++;
-        }
-
-        // Grup geçerli, işle
-        valid_groups++;
-        ESP_LOGI(TAG, "Grup %d başarıyla işlendi", (int)id->valuedouble);
-    }
-
-    cJSON_Delete(root);
-
-    if (valid_groups == 0) {
-        ESP_LOGE(TAG, "Hiç geçerli grup bulunamadı!");
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Hiç geçerli grup bulunamadı");
-        return ESP_FAIL;
-    }
-
-    ESP_LOGI(TAG, "Kayıt tamamlandı: Toplam %d grup (%d aydınlatma, %d panjur)", 
-             valid_groups, aydinlatma_count, panjur_count);
+    nvs_close(nvs_handle);
+    free(buf);
     httpd_resp_sendstr(req, "OK");
+    return ESP_OK;
+}
+
+esp_err_t WebServer::api_delete_groups_handler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Grup silme isteği alındı");
+
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "NVS açılamadı: %s", esp_err_to_name(err));
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "NVS açılamadı");
+        return ESP_FAIL;
+    }
+
+    err = nvs_erase_key(nvs_handle, "groups");
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGE(TAG, "NVS'den silinemedi: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "NVS'den silinemedi");
+        return ESP_FAIL;
+    }
+
+    err = nvs_commit(nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "NVS commit başarısız: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "NVS commit başarısız");
+        return ESP_FAIL;
+    }
+
+    nvs_close(nvs_handle);
+    httpd_resp_sendstr(req, "OK");
+    return ESP_OK;
+}
+
+esp_err_t WebServer::api_get_groups_handler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Grup getirme isteği alındı");
+
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open("storage", NVS_READONLY, &nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "NVS açılamadı: %s", esp_err_to_name(err));
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "NVS açılamadı");
+        return ESP_FAIL;
+    }
+
+    size_t required_size = 0;
+    err = nvs_get_blob(nvs_handle, "groups", NULL, &required_size);
+    if (err != ESP_OK) {
+        if (err == ESP_ERR_NVS_NOT_FOUND) {
+            // Grup bulunamadı, boş dizi döndür
+            httpd_resp_set_type(req, "application/json");
+            httpd_resp_sendstr(req, "[]");
+            nvs_close(nvs_handle);
+            return ESP_OK;
+        }
+        ESP_LOGE(TAG, "NVS'den okunamadı: %s", esp_err_to_name(err));
+        nvs_close(nvs_handle);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "NVS'den okunamadı");
+        return ESP_FAIL;
+    }
+
+    char *buf = (char*)malloc(required_size + 1);
+    if (!buf) {
+        ESP_LOGE(TAG, "Bellek yetersiz! İstenen boyut: %d", required_size);
+        nvs_close(nvs_handle);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Bellek yetersiz");
+        return ESP_FAIL;
+    }
+
+    err = nvs_get_blob(nvs_handle, "groups", buf, &required_size);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "NVS'den okunamadı: %s", esp_err_to_name(err));
+        free(buf);
+        nvs_close(nvs_handle);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "NVS'den okunamadı");
+        return ESP_FAIL;
+    }
+
+    buf[required_size] = '\0';
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, buf);
+
+    free(buf);
+    nvs_close(nvs_handle);
     return ESP_OK;
 }
 
@@ -283,6 +233,179 @@ esp_err_t WebServer::panel_handler(httpd_req_t *req) {
     }
     // Oturum yok, login'e yönlendir
     return redirect_to_login(req);
+}
+
+// Timer task için yapı
+struct PanjurTimerParams {
+    int timer_value;
+    int group_id;
+};
+
+// Timer task fonksiyonu
+void panjur_timer_task(void *pvParameters) {
+    PanjurTimerParams *params = (PanjurTimerParams *)pvParameters;
+    
+    // Timer süresini bekle
+    vTaskDelay(pdMS_TO_TICKS(params->timer_value * 1000));
+    
+    // Timer süresi dolduğunda panjuru durdur
+    ESP_LOGI(TAG, "Timer süresi doldu, panjur durduruluyor (Grup ID: %d)", params->group_id);
+    
+    // Burada GPIO kontrolü yapılabilir
+    
+    // Parametreleri temizle
+    free(params);
+    
+    // Task'i sonlandır
+    vTaskDelete(NULL);
+}
+
+esp_err_t WebServer::api_group_action_handler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Grup aksiyon isteği alındı");
+    
+    char buf[100];
+    int ret = httpd_req_recv(req, buf, MIN(req->content_len, sizeof(buf)-1));
+    if (ret <= 0) {
+        ESP_LOGE(TAG, "Veri alınamadı! Hata kodu: %d", ret);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Veri alınamadı");
+        return ESP_FAIL;
+    }
+    buf[ret] = '\0';
+
+    // JSON parse et
+    cJSON *root = cJSON_Parse(buf);
+    if (!root) {
+        const char *error_ptr = cJSON_GetErrorPtr();
+        if (error_ptr) {
+            ESP_LOGE(TAG, "JSON Parse hatası: %s", error_ptr);
+        }
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Geçersiz JSON formatı");
+        return ESP_FAIL;
+    }
+
+    // Gerekli alanları kontrol et
+    cJSON *id = cJSON_GetObjectItem(root, "id");
+    cJSON *action = cJSON_GetObjectItem(root, "action");
+    cJSON *type = cJSON_GetObjectItem(root, "type");
+
+    if (!id || !cJSON_IsNumber(id) || !action || !cJSON_IsString(action) || !type || !cJSON_IsString(type)) {
+        ESP_LOGE(TAG, "Eksik veya hatalı parametreler");
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Eksik veya hatalı parametreler");
+        return ESP_FAIL;
+    }
+
+    // Panjur kontrolü ve timer işlemi
+    if (strcmp(type->valuestring, "panjur") == 0) {
+        // NVS'den grup bilgilerini al
+        nvs_handle_t nvs_handle;
+        esp_err_t err = nvs_open("storage", NVS_READONLY, &nvs_handle);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "NVS açılamadı: %s", esp_err_to_name(err));
+            cJSON_Delete(root);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "NVS açılamadı");
+            return ESP_FAIL;
+        }
+
+        size_t required_size = 0;
+        err = nvs_get_blob(nvs_handle, "groups", NULL, &required_size);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "NVS'den okunamadı: %s", esp_err_to_name(err));
+            nvs_close(nvs_handle);
+            cJSON_Delete(root);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "NVS'den okunamadı");
+            return ESP_FAIL;
+        }
+
+        char *groups_json = (char*)malloc(required_size + 1);
+        if (!groups_json) {
+            ESP_LOGE(TAG, "Bellek yetersiz!");
+            nvs_close(nvs_handle);
+            cJSON_Delete(root);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Bellek yetersiz");
+            return ESP_FAIL;
+        }
+
+        err = nvs_get_blob(nvs_handle, "groups", groups_json, &required_size);
+        nvs_close(nvs_handle);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "NVS'den okunamadı: %s", esp_err_to_name(err));
+            free(groups_json);
+            cJSON_Delete(root);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "NVS'den okunamadı");
+            return ESP_FAIL;
+        }
+        groups_json[required_size] = '\0';
+
+        // Grupları parse et
+        cJSON *groups = cJSON_Parse(groups_json);
+        free(groups_json);
+        if (!groups) {
+            ESP_LOGE(TAG, "Gruplar JSON parse hatası");
+            cJSON_Delete(root);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Gruplar JSON parse hatası");
+            return ESP_FAIL;
+        }
+
+        // İlgili grubu bul
+        cJSON *group = NULL;
+        cJSON_ArrayForEach(group, groups) {
+            cJSON *group_id = cJSON_GetObjectItem(group, "id");
+            if (group_id && cJSON_IsNumber(group_id) && (int)group_id->valuedouble == (int)id->valuedouble) {
+                break;
+            }
+        }
+
+        if (!group) {
+            ESP_LOGE(TAG, "Grup bulunamadı: %d", (int)id->valuedouble);
+            cJSON_Delete(groups);
+            cJSON_Delete(root);
+            httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Grup bulunamadı");
+            return ESP_FAIL;
+        }
+
+        // Timer değerini al
+        cJSON *timer = cJSON_GetObjectItem(group, "timer");
+        int timer_value = timer && cJSON_IsNumber(timer) ? (int)timer->valuedouble : 0;
+
+        // Aksiyonu logla
+        ESP_LOGI(TAG, "Grup ID: %d, Tip: %s, Aksiyon: %s, Timer: %d saniye", 
+                 (int)id->valuedouble, type->valuestring, action->valuestring, timer_value);
+
+        // Timer işlemi için yeni bir task oluştur
+        if (strcmp(action->valuestring, "up") == 0 || strcmp(action->valuestring, "down") == 0) {
+            // Timer değeri varsa, belirtilen süre sonra durdur
+            if (timer_value > 0) {
+                // Timer parametrelerini hazırla
+                PanjurTimerParams *params = (PanjurTimerParams *)malloc(sizeof(PanjurTimerParams));
+                if (params) {
+                    params->timer_value = timer_value;
+                    params->group_id = (int)id->valuedouble;
+                    
+                    // Timer için yeni bir task oluştur
+                    TaskHandle_t timer_task_handle = NULL;
+                    xTaskCreate(
+                        panjur_timer_task,
+                        "panjur_timer",
+                        2048,
+                        params,
+                        5,
+                        &timer_task_handle
+                    );
+                }
+            }
+        }
+
+        cJSON_Delete(groups);
+    } else {
+        // Diğer aksiyonlar için normal log
+        ESP_LOGI(TAG, "Grup ID: %d, Tip: %s, Aksiyon: %s", 
+                 (int)id->valuedouble, type->valuestring, action->valuestring);
+    }
+
+    cJSON_Delete(root);
+    httpd_resp_sendstr(req, "OK");
+    return ESP_OK;
 }
 
 esp_err_t WebServer::begin() {
@@ -372,6 +495,33 @@ esp_err_t WebServer::begin() {
         .user_ctx = NULL
     };
     httpd_register_uri_handler(server, &save_groups_uri);
+
+    // Yeni endpoint: /api/delete_groups
+    httpd_uri_t delete_groups_uri = {
+        .uri      = "/api/delete_groups",
+        .method   = HTTP_POST,
+        .handler  = api_delete_groups_handler,
+        .user_ctx = NULL
+    };
+    httpd_register_uri_handler(server, &delete_groups_uri);
+
+    // Yeni endpoint: /api/get_groups
+    httpd_uri_t get_groups_uri = {
+        .uri      = "/api/get_groups",
+        .method   = HTTP_GET,
+        .handler  = api_get_groups_handler,
+        .user_ctx = NULL
+    };
+    httpd_register_uri_handler(server, &get_groups_uri);
+
+    // Yeni endpoint: /api/group_action
+    httpd_uri_t group_action_uri = {
+        .uri      = "/api/group_action",
+        .method   = HTTP_POST,
+        .handler  = api_group_action_handler,
+        .user_ctx = NULL
+    };
+    httpd_register_uri_handler(server, &group_action_uri);
 
     ESP_LOGI("WebServer", "Tüm URI handler'ları kaydedildi");
     return ESP_OK;

@@ -30,7 +30,7 @@
 #define ETH_INT   4
 #define ETH_RST   18
 #define HOST (spi_host_device_t) 1
-#define CLOCK_MHZ 8
+#define CLOCK_MHZ 4
 
 class Erhernet {
 public:

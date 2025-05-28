@@ -348,9 +348,12 @@
     <div class="actions">
       <button onclick="addGroup('aydinlatma')">Aydınlatma Ekle</button>
       <button onclick="addGroup('panjur')">Panjur Ekle</button>
+      <button onclick="deleteAllGroups()" style="background: var(--danger);">Tüm Grupları Sil</button>
     </div>
     <div class="save-bar">
       <button onclick="saveAllGroups()">Kaydet</button>
+      <button onclick="loadGroups()" style="margin-left: 10px;">Grupları Yükle</button>
+      <button onclick="showCurrentJson()" style="margin-left: 10px; background: var(--accent);">JSON'u Göster</button>
     </div>
     <div class="groups" id="groups"></div>
   </div>
@@ -394,47 +397,84 @@
       }
     }
 
+    // Grupların geçerliliğini kontrol et
+    function validateGroups() {
+        for (const g of groups) {
+            // Panjur kontrolü
+            if (g.type === 'panjur') {
+                // Girişler kontrolü
+                if (g.inputs.length !== 2 || g.inputs.some(input => !input)) {
+                    alert(`"${g.name}" panjurunun girişleri eksik! Lütfen tüm girişleri girin.`);
+                    return false;
+                }
+                // Çıkışlar kontrolü
+                if (g.outputs.length !== 2 || g.outputs.some(output => !output)) {
+                    alert(`"${g.name}" panjurunun çıkışları eksik! Lütfen tüm çıkışları girin.`);
+                    return false;
+                }
+            }
+            // Aydınlatma kontrolü
+            else if (g.type === 'aydinlatma') {
+                // En az bir giriş ve bir çıkış olmalı
+                if (g.inputs.length === 0) {
+                    alert(`"${g.name}" aydınlatmasının girişi eksik! En az bir giriş ekleyin.`);
+                    return false;
+                }
+                if (g.outputs.length === 0) {
+                    alert(`"${g.name}" aydınlatmasının çıkışı eksik! En az bir çıkış ekleyin.`);
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     async function saveAllGroups() {
-      if (isSaving) {
-        console.log('Kaydetme işlemi devam ediyor, lütfen bekleyin...');
-        return;
-      }
+        if (isSaving) {
+            console.log('Kaydetme işlemi devam ediyor, lütfen bekleyin...');
+            return;
+        }
 
-      isSaving = true;
-      const saveButton = document.querySelector('.save-bar button');
-      const originalText = saveButton.textContent;
-      saveButton.textContent = 'Kaydediliyor...';
-      saveButton.disabled = true;
+        // Grupların geçerliliğini kontrol et
+        if (!validateGroups()) {
+            return;
+        }
 
-      try {
-        // Tüm grupları tek seferde gönder
-        const response = await retryOperation(async () => {
-          const res = await fetch('/api/save_groups', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(groups)
-          });
+        isSaving = true;
+        const saveButton = document.querySelector('.save-bar button');
+        const originalText = saveButton.textContent;
+        saveButton.textContent = 'Kaydediliyor...';
+        saveButton.disabled = true;
 
-          if (!res.ok) {
-            throw new Error(`HTTP error! status: ${res.status}`);
-          }
+        try {
+            // Tüm grupları tek seferde gönder
+            const response = await retryOperation(async () => {
+                const res = await fetch('/api/save_groups', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(groups)
+                });
 
-          return res;
-        });
+                if (!res.ok) {
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
 
-        const result = await response.text();
-        console.log('Kayıt başarılı:', result);
-        alert('Gruplar başarıyla kaydedildi!');
-      } catch (error) {
-        console.error('Kayıt hatası:', error);
-        alert('Kayıt sırasında bir hata oluştu: ' + error.message);
-      } finally {
-        isSaving = false;
-        saveButton.textContent = originalText;
-        saveButton.disabled = false;
-      }
+                return res;
+            });
+
+            const result = await response.text();
+            console.log('Kayıt başarılı:', result);
+            alert('Gruplar başarıyla kaydedildi!');
+        } catch (error) {
+            console.error('Kayıt hatası:', error);
+            alert('Kayıt sırasında bir hata oluştu: ' + error.message);
+        } finally {
+            isSaving = false;
+            saveButton.textContent = originalText;
+            saveButton.disabled = false;
+        }
     }
 
     function addGroup(type) {
@@ -487,8 +527,24 @@
       if (!g) return;
       if (g.type === 'panjur') return; // Panjurda ekleme yok
       const ioList = ioType === 'input' ? g.inputs : g.outputs;
-      const ioName = prompt(ioType === 'input' ? 'Giriş adı veya numarası:' : 'Çıkış adı veya numarası:');
-      if (ioName) ioList.push(ioName);
+      
+      const ioName = prompt(ioType === 'input' ? 'Giriş numarası (1-32):' : 'Çıkış numarası (1-32):');
+      if (!ioName) return;
+
+      // Sayı kontrolü
+      const num = parseInt(ioName);
+      if (isNaN(num) || num < 1 || num > 32) {
+        alert('Lütfen 1 ile 32 arasında bir numara girin!');
+        return;
+      }
+
+      // Aynı numara kontrolü
+      if (ioList.includes(ioName)) {
+        alert('Bu numara zaten kullanılıyor!');
+        return;
+      }
+
+      ioList.push(ioName);
       saveGroups();
       renderGroups();
     }
@@ -503,20 +559,64 @@
       renderGroups();
     }
 
-    function toggleAydinlatma(id) {
-      const g = groups.find(g => g.id === id);
-      if (!g) return;
-      g.state = !g.state;
-      saveGroups();
-      renderGroups();
+    async function toggleAydinlatma(id) {
+        const g = groups.find(g => g.id === id);
+        if (!g) return;
+        
+        try {
+            const response = await fetch('/api/group_action', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    id: id,
+                    type: 'aydinlatma',
+                    action: g.state ? 'off' : 'on'
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            g.state = !g.state;
+            saveGroups();
+            renderGroups();
+        } catch (error) {
+            console.error('Aksiyon hatası:', error);
+            alert('İşlem sırasında bir hata oluştu: ' + error.message);
+        }
     }
 
-    function panjurAction(id, action) {
-      const g = groups.find(g => g.id === id);
-      if (!g) return;
-      g.state = action;
-      saveGroups();
-      renderGroups();
+    async function panjurAction(id, action) {
+        const g = groups.find(g => g.id === id);
+        if (!g) return;
+
+        try {
+            const response = await fetch('/api/group_action', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    id: id,
+                    type: 'panjur',
+                    action: action
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            g.state = action;
+            saveGroups();
+            renderGroups();
+        } catch (error) {
+            console.error('Aksiyon hatası:', error);
+            alert('İşlem sırasında bir hata oluştu: ' + error.message);
+        }
     }
 
     function showJsonModal(json) {
@@ -633,7 +733,6 @@
                <button onclick=\"panjurAction(${g.id}, 'down')\">Aşağı</button>`
             }
           </div>
-          <div class=\"status\">Durum: <b>${g.type === 'aydinlatma' ? (g.state ? 'Açık' : 'Kapalı') : (g.state === 'up' ? 'Yukarı' : g.state === 'down' ? 'Aşağı' : 'Duruyor')}</b></div>
         `;
         container.appendChild(card);
       });
@@ -653,15 +752,93 @@
       const g = groups.find(g => g.id === id);
       if (!g) return;
       const label = ioType === 'input' ? 
-        (idx === 0 ? 'Yukarı giriş ismi veya numarası:' : 'Aşağı giriş ismi veya numarası:') : 
-        (idx === 0 ? 'Yukarı çıkış ismi veya numarası:' : 'Aşağı çıkış ismi veya numarası:');
+        (idx === 0 ? 'Yukarı giriş numarası (1-32):' : 'Aşağı giriş numarası (1-32):') : 
+        (idx === 0 ? 'Yukarı çıkış numarası (1-32):' : 'Aşağı çıkış numarası (1-32):');
+      
       const val = prompt(label, (ioType === 'input' ? g.inputs[idx] : g.outputs[idx]) || '');
       if (val === null) return;
+
+      // Sayı kontrolü
+      const num = parseInt(val);
+      if (isNaN(num) || num < 1 || num > 32) {
+        alert('Lütfen 1 ile 32 arasında bir numara girin!');
+        return;
+      }
+
+      // Aynı numara kontrolü (kendi numarası hariç)
+      const currentList = ioType === 'input' ? g.inputs : g.outputs;
+      if (currentList.includes(val) && currentList.indexOf(val) !== idx) {
+        alert('Bu numara zaten kullanılıyor!');
+        return;
+      }
+
       if (ioType === 'input') g.inputs[idx] = val;
       else g.outputs[idx] = val;
       saveGroups();
       renderGroups();
     }
+
+    async function deleteAllGroups() {
+        if (!confirm('Tüm grupları silmek istediğinizden emin misiniz?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/delete_groups', {
+                method: 'POST'
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            groups = [];
+            saveGroups();
+            renderGroups();
+            alert('Tüm gruplar başarıyla silindi!');
+        } catch (error) {
+            console.error('Silme hatası:', error);
+            alert('Silme sırasında bir hata oluştu: ' + error.message);
+        }
+    }
+
+    async function loadGroups() {
+        try {
+            const response = await fetch('/api/get_groups');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            groups = data;
+            saveGroups();
+            renderGroups();
+            alert('Gruplar başarıyla yüklendi!');
+        } catch (error) {
+            console.error('Yükleme hatası:', error);
+            alert('Yükleme sırasında bir hata oluştu: ' + error.message);
+        }
+    }
+
+    async function showCurrentJson() {
+        try {
+            // Önce ESP'den güncel JSON'u al
+            const response = await fetch('/api/get_groups');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const jsonStr = JSON.stringify(data, null, 2); // JSON'u güzel formatla
+            showJsonModal(jsonStr);
+        } catch (error) {
+            console.error('JSON getirme hatası:', error);
+            alert('JSON alınırken bir hata oluştu: ' + error.message);
+        }
+    }
+
+    // Sayfa yüklendiğinde grupları otomatik yükle
+    window.addEventListener('load', loadGroups);
 
     window.removeGroup = removeGroup;
     window.updateGroupName = updateGroupName;
